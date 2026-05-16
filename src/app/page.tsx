@@ -1,6 +1,7 @@
 "use client";
 
 import { useState, useEffect, useCallback } from "react";
+import Link from "next/link";
 import {
   Save, Cloud, CloudOff, FolderOpen, Settings, HelpCircle,
   Pencil,
@@ -132,29 +133,29 @@ export default function Home() {
 
           <ExportButton />
 
-          <a
+          <Link
             href="/projects"
             className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-zinc-400 hover:text-zinc-200 text-xs transition-colors"
           >
             <FolderOpen className="w-3.5 h-3.5" />
             Projects
-          </a>
+          </Link>
 
-          <a
+          <Link
             href="/settings"
             className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-zinc-400 hover:text-zinc-200 text-xs transition-colors"
           >
             <Settings className="w-3.5 h-3.5" />
             Tones
-          </a>
+          </Link>
 
-          <a
+          <Link
             href="/guide"
             className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-zinc-400 hover:text-zinc-200 text-xs transition-colors"
           >
             <HelpCircle className="w-3.5 h-3.5" />
             Guide
-          </a>
+          </Link>
 
           <UserMenu />
         </div>

@@ -6,15 +6,11 @@ import { ArrowLeft, Music, Monitor, Guitar, Globe } from "lucide-react";
 import { detectOS } from "@/lib/midi";
 
 export default function GuidePage() {
-  const [os, setOs] = useState<string>("unknown");
-  const [osTab, setOsTab] = useState<"mac" | "windows" | "linux">("mac");
-
-  useState(() => {
+  const [osTab, setOsTab] = useState<"mac" | "windows" | "linux">(() => {
     const detected = detectOS();
-    setOs(detected);
-    if (detected === "mac" || detected === "windows" || detected === "linux") {
-      setOsTab(detected);
-    }
+    return detected === "mac" || detected === "windows" || detected === "linux"
+      ? detected
+      : "mac";
   });
 
   return (
@@ -118,6 +114,31 @@ export default function GuidePage() {
               </div>
             ))}
           </div>
+        </section>
+
+        {/* Browser Support */}
+        <section className="space-y-4">
+          <h2 className="text-lg font-semibold border-b border-zinc-800 pb-2">Browser Support</h2>
+          <div className="grid grid-cols-4 gap-3">
+            {[
+              { name: "Chrome", version: "43+", supported: true },
+              { name: "Edge", version: "79+", supported: true },
+              { name: "Opera", version: "30+", supported: true },
+              { name: "Firefox", version: "108+", supported: true },
+            ].map((b) => (
+              <div
+                key={b.name}
+                className="flex flex-col items-center gap-1 p-3 rounded-lg border border-zinc-800 bg-zinc-900/50"
+              >
+                <span className="text-sm font-medium text-white">{b.name}</span>
+                <span className="text-xs text-zinc-400">{b.version}</span>
+                <span className="text-green-400 text-xs">✓ Supported</span>
+              </div>
+            ))}
+          </div>
+          <p className="text-xs text-zinc-500 text-center">
+            Safari and iOS browsers do not support the Web MIDI API.
+          </p>
         </section>
 
         {/* CTA */}
