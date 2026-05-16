@@ -148,7 +148,7 @@ export default function Timeline({ onAddTrigger }: Props) {
       ctx.lineTo(x, HEADER_HEIGHT);
       ctx.stroke();
 
-      ctx.fillStyle = "#666";
+      ctx.fillStyle = "#888";
       ctx.font = "10px monospace";
       ctx.textAlign = "center";
       const m = Math.floor(t / 60);

@@ -13,11 +13,6 @@ function formatTime(sec: number): string {
   return `${m}:${s.toString().padStart(2, "0")}`;
 }
 
-function getBackendUrl(): string {
-  const wsUrl = process.env.NEXT_PUBLIC_WS_URL || "ws://localhost:8765/ws";
-  return wsUrl.replace("ws://", "http://").replace("/ws", "");
-}
-
 export default function PlaybackControls() {
   const isPlaying = usePlaybackStore((s) => s.isPlaying);
   const setPlaying = usePlaybackStore((s) => s.setPlaying);
@@ -42,8 +37,7 @@ export default function PlaybackControls() {
       formData.append("file", file);
 
       try {
-        const backendUrl = getBackendUrl();
-        const res = await fetch(`${backendUrl}/api/audio/upload`, {
+        const res = await fetch(`/api/audio/upload`, {
           method: "POST",
           body: formData,
         });
