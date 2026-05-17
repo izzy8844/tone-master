@@ -1,85 +1,107 @@
-"use client";
+'use client'
 
-import { useState, useEffect, useCallback } from "react";
-import Link from "next/link";
+import { useState, useEffect, useCallback } from 'react'
+import Link from 'next/link'
 import {
-  Save, Cloud, CloudOff, FolderOpen, Settings, HelpCircle,
+  Save, Cloud, CloudOff, FolderOpen, Settings,
   Pencil,
-} from "lucide-react";
-import { useProjectStore } from "@/store/projectStore";
-import { usePlaybackStore } from "@/store/playbackStore";
-import { useAuthStore } from "@/store/authStore";
-import { useGatekeeper } from "@/hooks/useGatekeeper";
-import { useCloudSync } from "@/hooks/useCloudSync";
-import { useMidiTrigger } from "@/hooks/useMidiTrigger";
-import { connectWS, disconnectWS, onWSMessage } from "@/lib/ws";
-import PlaybackControls from "@/components/PlaybackControls";
-import Timeline from "@/components/Timeline";
-import TriggerList from "@/components/TriggerList";
-import ToneAddDialog from "@/components/ToneAddDialog";
-import MidiSetup from "@/components/MidiSetup";
-import ExportButton from "@/components/ExportButton";
-import UserMenu from "@/components/UserMenu";
-import { toast } from "@/components/Toast";
+} from 'lucide-react'
+import { useProjectStore } from '@/store/projectStore'
+import { useAuthStore } from '@/store/authStore'
+import { useMapperStore } from '@/stores/mapperStore'
+import { useGatekeeper } from '@/hooks/useGatekeeper'
+import { useCloudSync } from '@/hooks/useCloudSync'
+import { useWebSocket } from '@/hooks/useWebSocket'
+import { Transport } from '@/components/Transport'
+import { TimelineRuler } from '@/components/TimelineRuler'
+import { Waveform } from '@/components/Waveform'
+import { TriggerList } from '@/components/TriggerList'
+import { ProjectSidebar } from '@/components/ProjectSidebar'
+import { StatusBar } from '@/components/StatusBar'
+import { ToneMappingSelector } from '@/components/ToneMappingSelector'
+import { MidiLearnGuide } from '@/components/MidiLearnGuide'
+import ToneAddDialog from '@/components/ToneAddDialog'
+import ExportButton from '@/components/ExportButton'
+import UserMenu from '@/components/UserMenu'
+import { toast } from '@/components/Toast'
 
 export default function Home() {
-  const projectName = useProjectStore((s) => s.projectName);
-  const setProjectName = useProjectStore((s) => s.setProjectName);
-  const isDemo = useProjectStore((s) => s.isDemo);
-  const setPlaying = usePlaybackStore((s) => s.setPlaying);
-  const setCurrentTick = usePlaybackStore((s) => s.setCurrentTick);
-  const isSignedIn = useAuthStore((s) => s.isSignedIn);
-  const { guard } = useGatekeeper();
-  const { saveToCloud, syncStatus } = useCloudSync();
-  useMidiTrigger();
+  const projectName = useProjectStore((s) => s.projectName)
+  const setProjectName = useProjectStore((s) => s.setProjectName)
+  const isDemo = useProjectStore((s) => s.isDemo)
+  const isSignedIn = useAuthStore((s) => s.isSignedIn)
+  const { guard } = useGatekeeper()
+  const { saveToCloud, syncStatus } = useCloudSync()
+  const { updateTriggers } = useWebSocket()
 
-  const [isEditingName, setIsEditingName] = useState(false);
-  const [editName, setEditName] = useState(projectName);
-  const [addDialogOpen, setAddDialogOpen] = useState(false);
-  const [addDialogTime, setAddDialogTime] = useState(0);
+  const { positionMs, durationMs, currentProject, setActiveTriggerIndex, updateTrigger, addTrigger } = useMapperStore()
+  const triggers = currentProject?.triggers || []
 
-  // WebSocket connection
+  const [isEditingName, setIsEditingName] = useState(false)
+  const [editName, setEditName] = useState(projectName)
+  const [addDialogOpen, setAddDialogOpen] = useState(false)
+  const [addDialogTime, setAddDialogTime] = useState(0)
+
+  // Sync triggers to WebSocket when they change
   useEffect(() => {
-    connectWS();
-    const unsub = onWSMessage((msg) => {
-      if (msg.type === "playback_state") {
-        const isPlaying = msg.is_playing as boolean;
-        const currentTime = msg.current_time as number;
-        setPlaying(isPlaying);
-        setCurrentTick(currentTime);
+    if (triggers.length > 0) {
+      updateTriggers(triggers.map(t => ({
+        id: t.id,
+        time: t.time,
+        program: t.program,
+        name: t.toneName,
+        bank_msb: t.bankMsb,
+        bank_lsb: t.bankLsb,
+      })))
+    }
+  }, [triggers, updateTriggers])
+
+  // Update active trigger index based on playhead
+  useEffect(() => {
+    if (durationMs > 0 && triggers.length > 0) {
+      let active = -1
+      for (let i = triggers.length - 1; i >= 0; i--) {
+        if (triggers[i].time * 1000 <= positionMs) {
+          active = i
+          break
+        }
       }
-    });
-    return () => {
-      unsub();
-      disconnectWS();
-    };
-  }, [setPlaying, setCurrentTick]);
+      setActiveTriggerIndex(active)
+    }
+  }, [positionMs, triggers, durationMs, setActiveTriggerIndex])
 
   const handleSave = () => {
-    guard("save_project", () => {
+    guard('save_project', () => {
       if (isSignedIn) {
-        saveToCloud();
-        toast.success("Project saved to cloud");
+        saveToCloud()
+        toast.success('Project saved to cloud')
       } else {
-        toast.info("Signed out — saving locally");
+        toast.info('Signed out — saving locally')
       }
-    });
-  };
+    })
+  }
 
   const handleAddTrigger = useCallback(
     (time: number) => {
-      setAddDialogTime(time);
-      setAddDialogOpen(true);
+      setAddDialogTime(time)
+      setAddDialogOpen(true)
     },
     []
-  );
+  )
 
-  const SyncIcon = syncStatus === "syncing" ? Cloud : syncStatus === "error" ? CloudOff : Save;
+  const handleTriggerDrag = useCallback(
+    (triggerId: string, newTimeMs: number) => {
+      updateTrigger(triggerId, { time: newTimeMs / 1000 })
+    },
+    [updateTrigger]
+  )
+
+  const SyncIcon = syncStatus === 'syncing' ? Cloud : syncStatus === 'error' ? CloudOff : Save
 
   return (
-    <>
+    <div className="flex h-screen flex-col bg-[#0a0a0a]">
       {/* Header */}
-      <header className="flex items-center justify-between px-6 py-3 border-b border-zinc-800 bg-zinc-950/50 backdrop-blur-sm">
+      <header className="flex items-center justify-between px-6 py-3 border-b border-zinc-800 bg-zinc-950/50 backdrop-blur-sm shrink-0">
         <div className="flex items-center gap-3">
           {isEditingName ? (
             <input
@@ -87,13 +109,13 @@ export default function Home() {
               value={editName}
               onChange={(e) => setEditName(e.target.value)}
               onBlur={() => {
-                setProjectName(editName || "Untitled Project");
-                setIsEditingName(false);
+                setProjectName(editName || 'Untitled Project')
+                setIsEditingName(false)
               }}
               onKeyDown={(e) => {
-                if (e.key === "Enter") {
-                  setProjectName(editName || "Untitled Project");
-                  setIsEditingName(false);
+                if (e.key === 'Enter') {
+                  setProjectName(editName || 'Untitled Project')
+                  setIsEditingName(false)
                 }
               }}
               className="bg-zinc-800 border border-zinc-700 rounded-lg px-2 py-1 text-sm text-white focus:outline-none focus:border-green-500"
@@ -102,8 +124,8 @@ export default function Home() {
           ) : (
             <button
               onClick={() => {
-                setEditName(projectName);
-                setIsEditingName(true);
+                setEditName(projectName)
+                setIsEditingName(true)
               }}
               className="flex items-center gap-2 group"
             >
@@ -121,11 +143,11 @@ export default function Home() {
         </div>
 
         <div className="flex items-center gap-3">
-          <PlaybackControls />
+          <ToneMappingSelector />
 
           <button
             onClick={handleSave}
-            className={`flex items-center gap-1.5 px-3 py-1.5 rounded-lg border border-zinc-700 text-zinc-400 hover:text-green-400 hover:border-green-500 text-xs transition-colors ${syncStatus === "syncing" ? "animate-pulse" : ""}`}
+            className={`flex items-center gap-1.5 px-3 py-1.5 rounded-lg border border-zinc-700 text-zinc-400 hover:text-green-400 hover:border-green-500 text-xs transition-colors ${syncStatus === 'syncing' ? 'animate-pulse' : ''}`}
             title="Save project"
           >
             <SyncIcon className="w-3.5 h-3.5" />
@@ -149,36 +171,40 @@ export default function Home() {
             Tones
           </Link>
 
-          <Link
-            href="/guide"
-            className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-zinc-400 hover:text-zinc-200 text-xs transition-colors"
-          >
-            <HelpCircle className="w-3.5 h-3.5" />
-            Guide
-          </Link>
+          <MidiLearnGuide />
 
           <UserMenu />
         </div>
       </header>
 
-      {/* Main */}
-      <main className="flex-1 flex flex-col gap-4 p-6 overflow-hidden">
-        <Timeline onAddTrigger={handleAddTrigger} />
+      {/* Body */}
+      <div className="flex flex-1 overflow-hidden">
+        {/* Sidebar */}
+        <ProjectSidebar />
 
-        <div className="flex gap-4">
-          <TriggerList />
-          <div className="w-72 shrink-0">
-            <MidiSetup />
+        {/* Main Content */}
+        <main className="flex-1 flex flex-col overflow-hidden">
+          {/* Timeline Section */}
+          <div className="flex-1 flex flex-col px-6 py-4 overflow-y-auto gap-4">
+            <TimelineRuler />
+            <Waveform waveformData={undefined} onTriggerDrag={handleTriggerDrag} />
+            <TriggerList />
           </div>
-        </div>
-      </main>
 
-      {/* Dialog */}
+          {/* Transport */}
+          <Transport />
+        </main>
+      </div>
+
+      {/* StatusBar */}
+      <StatusBar />
+
+      {/* Dialogs */}
       <ToneAddDialog
         open={addDialogOpen}
         onClose={() => setAddDialogOpen(false)}
         time={addDialogTime}
       />
-    </>
-  );
+    </div>
+  )
 }
