@@ -1,9 +1,11 @@
 """
 Timeline Scheduler — fires MIDI triggers with 5ms advance compensation.
-This ensures triggers fire precisely at the right time despite system latency.
 """
+import bisect
 from dataclasses import dataclass
-from typing import List, Optional, Callable
+from typing import Callable, Optional
+
+ADVANCE_MS = 5
 
 
 @dataclass
@@ -12,58 +14,49 @@ class TriggerPoint:
     time_ms: float
     program: int
     name: str
-    bank_msb: Optional[int] = None
-    bank_lsb: Optional[int] = None
-    fired: bool = False
 
 
 class TimelineScheduler:
-    def __init__(self, on_trigger: Callable[[TriggerPoint], None], advance_ms: float = 5.0):
-        self.triggers: List[TriggerPoint] = []
-        self.on_trigger = on_trigger
-        self.advance_ms = advance_ms
-        self._last_position_ms = 0.0
+    def __init__(self, on_trigger: Optional[Callable] = None):
+        self._triggers: list[TriggerPoint] = []
+        self._next_index: int = 0
+        self._trigger_callback = on_trigger
 
-    def set_triggers(self, triggers: List[dict]):
-        """Load triggers from project data. Expects list of {id, time (seconds), program/pc, name}"""
-        self.triggers = [
+    def load_triggers(self, triggers: list[dict]):
+        """Load and sort triggers by time_ms."""
+        self._triggers = sorted([
             TriggerPoint(
-                id=t["id"],
-                time_ms=t["time"] * 1000,
-                program=t.get("program", t.get("pc", 0)),
-                name=t.get("toneName", t.get("name", "")),
-                bank_msb=t.get("bank_msb"),
-                bank_lsb=t.get("bank_lsb"),
+                id=t.get("id", ""),
+                time_ms=t.get("time_ms", t.get("time", 0) * 1000),
+                program=t.get("pc_value", t.get("program", t.get("pc", 0))),
+                name=t.get("name", t.get("toneName", t.get("preset_name", ""))),
             )
             for t in triggers
-        ]
-        self.reset()
+        ], key=lambda x: x.time_ms)
+        self._next_index = 0
 
-    def tick(self, current_ms: float):
-        """Called every tick. Fire triggers that fall in [last_pos, current + advance]."""
-        check_ahead = current_ms + self.advance_ms
-        for trigger in self.triggers:
-            if trigger.fired:
-                continue
-            if self._last_position_ms <= trigger.time_ms <= check_ahead:
-                trigger.fired = True
-                self.on_trigger(trigger)
-        self._last_position_ms = current_ms
+    def tick(self, playhead_ms: int) -> list[TriggerPoint]:
+        """Called every 50ms. Returns list of fired triggers."""
+        fired = []
+        while self._next_index < len(self._triggers):
+            t = self._triggers[self._next_index]
+            if playhead_ms + ADVANCE_MS >= t.time_ms:
+                fired.append(t)
+                if self._trigger_callback:
+                    self._trigger_callback(t)
+                self._next_index += 1
+            else:
+                break
+        return fired
+
+    def reset_to(self, position_ms: int):
+        """Find correct next_index after seek using binary search."""
+        times = [t.time_ms for t in self._triggers]
+        self._next_index = bisect.bisect_left(times, position_ms)
 
     def reset(self):
-        for t in self.triggers:
-            t.fired = False
-        self._last_position_ms = 0.0
+        self._next_index = 0
 
-    def reset_to(self, position_ms: float):
-        """For seek/loop: unfire triggers ahead of new position."""
-        self._last_position_ms = position_ms
-        for t in self.triggers:
-            t.fired = t.time_ms < position_ms
-
-    def get_active_index(self, current_ms: float) -> int:
-        active = -1
-        for i, t in enumerate(self.triggers):
-            if t.time_ms <= current_ms:
-                active = i
-        return active
+    @property
+    def triggers(self) -> list[TriggerPoint]:
+        return self._triggers

@@ -29,7 +29,7 @@ export default function Home() {
   const isSignedIn = useAuthStore((s) => s.isSignedIn)
   const { guard } = useGatekeeper()
   const { saveToCloud, syncStatus } = useCloudSync()
-  const { updateTriggers, send } = useWebSocket()
+  const { send, sendCommand } = useWebSocket()
   const fileInputRef = useRef<HTMLInputElement>(null)
 
   const { positionMs, durationMs, currentProject, setActiveTriggerIndex, updateTrigger, addTrigger, sidebarOpen, toggleSidebar, audioFile } = useMapperStore()
@@ -118,16 +118,16 @@ export default function Home() {
   // Sync triggers to WebSocket when they change
   useEffect(() => {
     if (triggers.length > 0) {
-      updateTriggers(triggers.map(t => ({
+      send({ type: "update_triggers", triggers: triggers.map(t => ({
         id: t.id,
         time: t.time,
         program: t.program,
         name: t.toneName,
         bank_msb: t.bankMsb,
-        bank_lsb: t.bankLsb,
-      })))
+        bank_lsb: t.bankMsb,
+      })) })
     }
-  }, [triggers, updateTriggers])
+  }, [triggers, send])
 
   // Update active trigger index based on playhead
   useEffect(() => {
@@ -149,7 +149,7 @@ export default function Home() {
         saveToCloud()
         toast.success('Project saved to cloud')
       } else {
-        toast.info('Signed out — saving locally')
+        toast.info('Signed out �?saving locally')
       }
     })
   }

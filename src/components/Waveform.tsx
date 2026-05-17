@@ -1,6 +1,8 @@
 'use client'
+
 import { useRef, useEffect, useCallback } from 'react'
-import { useMapperStore } from '@/stores/mapperStore'
+import { usePlaybackStore } from '@/stores/playbackStore'
+import { useProjectStore } from '@/stores/projectStore'
 
 interface WaveformProps {
   waveformData?: number[]
@@ -10,11 +12,11 @@ interface WaveformProps {
 
 export function Waveform({ waveformData, onTriggerDrag, onAddTrigger }: WaveformProps) {
   const canvasRef = useRef<HTMLCanvasElement>(null)
-  const { positionMs, durationMs, currentProject, activeTriggerIndex, isPlaying } = useMapperStore()
-  const triggers = currentProject?.triggers || []
-  const positionRef = useRef(positionMs)
+  const { currentTick, duration, activeTriggerIndex, isPlaying } = usePlaybackStore()
+  const triggers = useProjectStore((s) => s.triggers)
+  const positionRef = useRef(currentTick)
 
-  positionRef.current = positionMs
+  positionRef.current = currentTick
 
   const draw = useCallback((currentPositionMs: number) => {
     const canvas = canvasRef.current
@@ -40,17 +42,9 @@ export function Waveform({ waveformData, onTriggerDrag, onAddTrigger }: Waveform
       }
     }
 
-    const abLoop = currentProject?.abLoop
-    if (abLoop && durationMs > 0) {
-      const loopLeft = (abLoop.startMs / durationMs) * width
-      const loopWidth = ((abLoop.endMs - abLoop.startMs) / durationMs) * width
-      ctx.fillStyle = 'rgba(34, 197, 94, 0.1)'
-      ctx.fillRect(loopLeft, 0, loopWidth, height)
-    }
-
-    if (durationMs > 0) {
+    if (duration > 0) {
       triggers.forEach((t, idx) => {
-        const x = (t.time * 1000 / durationMs) * width
+        const x = (t.time / duration) * width
         const isActive = idx === activeTriggerIndex
         ctx.strokeStyle = isActive ? '#22c55e' : '#4ade80'
         ctx.lineWidth = isActive ? 2 : 1
@@ -65,7 +59,7 @@ export function Waveform({ waveformData, onTriggerDrag, onAddTrigger }: Waveform
         ctx.fillText(t.toneName, x + 4, 12)
       })
 
-      const playX = (currentPositionMs / durationMs) * width
+      const playX = (currentPositionMs / duration) * width
       ctx.strokeStyle = '#ffffff'
       ctx.lineWidth = 1.5
       ctx.beginPath()
@@ -73,14 +67,14 @@ export function Waveform({ waveformData, onTriggerDrag, onAddTrigger }: Waveform
       ctx.lineTo(playX, height)
       ctx.stroke()
     }
-  }, [waveformData, durationMs, triggers, activeTriggerIndex, currentProject?.abLoop])
+  }, [waveformData, duration, triggers, activeTriggerIndex])
 
   useEffect(() => { draw(positionRef.current) }, [draw])
 
   useEffect(() => {
     let rafId: number
     const loop = () => {
-      if (useMapperStore.getState().isPlaying) {
+      if (usePlaybackStore.getState().isPlaying) {
         draw(positionRef.current)
         rafId = requestAnimationFrame(loop)
       }
@@ -90,21 +84,21 @@ export function Waveform({ waveformData, onTriggerDrag, onAddTrigger }: Waveform
   }, [isPlaying, draw])
 
   const handleMouseDown = useCallback((e: React.MouseEvent) => {
-    if (!onTriggerDrag || durationMs === 0) return
+    if (!onTriggerDrag || duration === 0) return
     const canvas = canvasRef.current
     if (!canvas) return
     const rect = canvas.getBoundingClientRect()
     const clickX = e.clientX - rect.left
-    const clickTimeMs = (clickX / rect.width) * durationMs
+    const clickTimeS = (clickX / rect.width) * duration
 
-    const threshold = (10 / rect.width) * durationMs
-    const nearest = triggers.find(t => Math.abs(t.time * 1000 - clickTimeMs) < threshold)
+    const threshold = (10 / rect.width) * duration
+    const nearest = triggers.find(t => Math.abs(t.time - clickTimeS) < threshold)
     if (!nearest) return
 
     const onMove = (me: MouseEvent) => {
       const mx = me.clientX - rect.left
-      const newTimeMs = Math.max(0, Math.min(durationMs, (mx / rect.width) * durationMs))
-      onTriggerDrag(nearest.id, newTimeMs)
+      const newTime = Math.max(0, Math.min(duration, (mx / rect.width) * duration))
+      onTriggerDrag(nearest.id, newTime)
     }
     const onUp = () => {
       document.removeEventListener('mousemove', onMove)
@@ -112,17 +106,17 @@ export function Waveform({ waveformData, onTriggerDrag, onAddTrigger }: Waveform
     }
     document.addEventListener('mousemove', onMove)
     document.addEventListener('mouseup', onUp)
-  }, [durationMs, triggers, onTriggerDrag])
+  }, [duration, triggers, onTriggerDrag])
 
   const handleDoubleClick = useCallback((e: React.MouseEvent) => {
-    if (!onAddTrigger || durationMs === 0) return
+    if (!onAddTrigger || duration === 0) return
     const canvas = canvasRef.current
     if (!canvas) return
     const rect = canvas.getBoundingClientRect()
     const clickX = e.clientX - rect.left
-    const timeMs = (clickX / rect.width) * durationMs
+    const timeMs = (clickX / rect.width) * duration * 1000
     onAddTrigger(timeMs)
-  }, [durationMs, onAddTrigger])
+  }, [duration, onAddTrigger])
 
   return (
     <canvas

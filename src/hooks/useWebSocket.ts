@@ -1,5 +1,5 @@
 import { useEffect, useRef, useCallback } from 'react'
-import { useMapperStore } from '@/stores/mapperStore'
+import { usePlaybackStore } from '@/stores/playbackStore'
 
 const WS_URL = process.env.NEXT_PUBLIC_WS_URL || 'ws://localhost:8765/ws'
 
@@ -16,50 +16,47 @@ export function useWebSocket() {
       return
     }
 
+    usePlaybackStore.getState().setWsStatus('connecting')
     globalWs = new WebSocket(WS_URL)
     wsRef.current = globalWs
 
-    globalWs.onopen = () => useMapperStore.getState().setConnected(true)
+    globalWs.onopen = () => {
+      usePlaybackStore.getState().setWsConnected(true)
+      usePlaybackStore.getState().setWsStatus('connected')
+    }
+
     globalWs.onclose = () => {
-      useMapperStore.getState().setConnected(false)
-      if (mountedRef.current) setTimeout(connect, 2000)
+      usePlaybackStore.getState().setWsConnected(false)
+      usePlaybackStore.getState().setWsStatus('disconnected')
+      if (mountedRef.current) setTimeout(connect, 3000)
     }
 
     globalWs.onmessage = (event) => {
       const msg = JSON.parse(event.data)
-      const s = useMapperStore.getState()
+      const pb = usePlaybackStore.getState()
       switch (msg.type) {
         case 'playhead_tick':
-          s.setPositionMs(msg.position_ms)
-          s.setIsPlaying(msg.is_playing)
-          s.setDurationMs(msg.duration_ms || s.durationMs)
+          pb.setCurrentTick(msg.playhead_ms / 1000)
           break
         case 'audio_loaded':
-          s.setDurationMs(msg.duration_ms)
-          s.setAudioFile(msg.path || msg.filename)
+          pb.setDuration((msg.duration_ms || 0) / 1000)
           break
         case 'midi_trigger':
-          s.setActiveTriggerIndex(msg.index)
+          if (msg.trigger) {
+            pb.setLastMidiEvent({ pc: msg.trigger.pc, name: msg.trigger.name || '' })
+          }
+          if (msg.trigger_index !== undefined) pb.setActiveTriggerIndex(msg.trigger_index)
           break
         case 'playback_state':
-          s.setIsPlaying(msg.is_playing)
-          if (!msg.is_playing) {
-            s.setActiveTriggerIndex(-1)
-          }
-          if (msg.position_ms !== undefined) {
-            s.setPositionMs(msg.position_ms)
-          } else if (msg.current_time !== undefined) {
-            s.setPositionMs(msg.current_time * 1000)
-          }
-          if (msg.duration_ms) s.setDurationMs(msg.duration_ms)
-          else if (msg.duration) s.setDurationMs(msg.duration * 1000)
+          pb.setIsPlaying(msg.playing)
+          if (!msg.playing) pb.setActiveTriggerIndex(-1)
           break
         case 'error':
           console.error('[WS Error]', msg.message)
           break
       }
     }
-  }, [])  // empty deps = stable, uses getState() for store access
+  }, [])
 
   const send = useCallback((data: Record<string, unknown>) => {
     if (globalWs?.readyState === WebSocket.OPEN) {
@@ -69,10 +66,6 @@ export function useWebSocket() {
 
   const sendCommand = useCallback((command: string, positionMs?: number) => {
     send({ type: 'playback_command', command, position_ms: positionMs })
-  }, [send])
-
-  const updateTriggers = useCallback((triggers: Array<Record<string, unknown>>) => {
-    send({ type: 'update_triggers', triggers })
   }, [send])
 
   useEffect(() => {
@@ -89,5 +82,5 @@ export function useWebSocket() {
     }
   }, [connect])
 
-  return { send, sendCommand, updateTriggers }
+  return { send, sendCommand }
 }

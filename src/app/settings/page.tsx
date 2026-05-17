@@ -1,4 +1,4 @@
-'use client'
+﻿'use client'
 import { useState, useEffect } from 'react'
 import Link from 'next/link'
 import { ArrowLeft } from 'lucide-react'
@@ -74,7 +74,7 @@ export default function SettingsPage() {
           </div>
         </section>
 
-        {/* Tone Presets — Universal */}
+        {/* Tone Presets 锟?Universal */}
         <section className="mb-8">
           <h2 className="text-lg font-semibold text-zinc-200 mb-4">Tone Presets</h2>
           <p className="text-sm text-zinc-400 mb-4">
@@ -114,7 +114,7 @@ export default function SettingsPage() {
             <div className="border-t border-zinc-800 pt-4">
               <h3 className="text-sm font-medium text-zinc-300 mb-2">Manual Preset Mapping</h3>
               <p className="text-xs text-zinc-500 mb-3">
-                For Line 6, Fractal, Kemper, Boss, or any other MIDI device — create a custom mapping manually.
+                For Line 6, Fractal, Kemper, Boss, or any other MIDI device 锟?create a custom mapping manually.
               </p>
               <button
                 onClick={() => setShowManualCreate(!showManualCreate)}
@@ -137,7 +137,7 @@ export default function SettingsPage() {
         {selectedPlugin && presets.length > 0 && (
           <section className="mb-8">
             <h2 className="text-lg font-semibold text-zinc-200 mb-4">
-              Presets — {selectedPlugin}
+              Presets 锟?{selectedPlugin}
             </h2>
             <div className="bg-zinc-900 rounded-xl p-4 border border-zinc-800 max-h-96 overflow-y-auto">
               {presets.map((p, i) => (
@@ -226,7 +226,7 @@ function ManualPresetForm() {
               className="flex-1 bg-zinc-700 text-white rounded px-2 py-1 text-sm border border-zinc-600"
               placeholder="Preset name"
             />
-            <button onClick={() => removeEntry(i)} className="text-zinc-500 hover:text-red-400 text-sm">✕</button>
+            <button onClick={() => removeEntry(i)} className="text-zinc-500 hover:text-red-400 text-sm">X</button>
           </div>
         ))}
       </div>

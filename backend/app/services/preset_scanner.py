@@ -1,12 +1,12 @@
 """
-Scan Neural DSP plugin directories to find installed presets.
-Presets are .ndspp binary files in various possible locations.
+Scan Neural DSP plugin preset directories for .xml binary preset files.
+Extracts preset names, UIDs, and source categories.
 """
-import os
 from pathlib import Path
 from typing import List
 from ..config import NEURAL_DSP_PRESETS, MAPPING_DIR
 from ..models import PresetInfo, PluginInfo
+from .preset_uid import extract_preset_uid
 
 
 def scan_plugins() -> List[PluginInfo]:
@@ -17,14 +17,8 @@ def scan_plugins() -> List[PluginInfo]:
 
     for entry in sorted(NEURAL_DSP_PRESETS.iterdir()):
         if entry.is_dir() and not entry.name.startswith('.'):
-            # Check multiple possible preset locations within plugin folder
-            preset_dirs = [entry / "Presets", entry / "User Presets", entry]
-            presets = []
-            for pd in preset_dirs:
-                if pd.exists():
-                    presets.extend(pd.rglob("*.ndspp"))
-
-            if presets or (entry / "Presets").exists():
+            presets = _scan_plugin_presets_raw(entry.name)
+            if presets:
                 plugins.append(PluginInfo(
                     name=entry.name,
                     path=str(entry),
@@ -35,42 +29,45 @@ def scan_plugins() -> List[PluginInfo]:
 
 
 def scan_presets(plugin_name: str) -> List[PresetInfo]:
-    """Scan presets for a specific plugin."""
-    preset_dir = NEURAL_DSP_PRESETS / plugin_name / "Presets"
-    presets = []
-    if not preset_dir.exists():
-        # Try alternate preset locations
-        for alt in ["User Presets", "."]:
-            alt_dir = (NEURAL_DSP_PRESETS / plugin_name / alt).resolve()
-            if alt_dir.exists():
-                preset_dir = alt_dir
-                break
-        else:
-            return presets
-
-    for f in sorted(preset_dir.rglob("*.ndspp")):
-        try:
-            rel = f.relative_to(preset_dir)
-        except ValueError:
-            rel = f
-        source = "factory" if "Factory" in str(rel) else "user"
-        presets.append(PresetInfo(
-            name=f.stem,
+    """Scan presets for a specific plugin with full UID extraction."""
+    raw = _scan_plugin_presets_raw(plugin_name)
+    results = []
+    for f in sorted(set(raw), key=lambda x: x.stem):
+        info = extract_preset_uid(str(f))
+        results.append(PresetInfo(
+            name=info.get("name", f.stem),
             path=str(f),
-            source=source,
-            uid=compute_preset_uid(str(f))
+            source=_get_source(plugin_name, f),
+            uid=str(info.get("midi_id", "")) if info.get("midi_id") else None,
         ))
+    return results
+
+
+def _scan_plugin_presets_raw(plugin_name: str) -> List[Path]:
+    """Walk User/, Artists/, Neural DSP/, Factory/ subdirs for .xml files."""
+    plugin_dir = NEURAL_DSP_PRESETS / plugin_name
+    if not plugin_dir.exists():
+        return []
+    presets = []
+    for subdir_name in ("User", "Artists", "Neural DSP", "Factory"):
+        subdir = plugin_dir / subdir_name
+        if subdir.exists():
+            presets.extend(subdir.rglob("*.xml"))
+    # Also check Presets/ subdirectory
+    pd = plugin_dir / "Presets"
+    if pd.exists():
+        presets.extend(pd.rglob("*.xml"))
     return presets
 
 
-def compute_preset_uid(filepath: str) -> str:
-    """Compute JUCE-compatible hashCode64 for a preset file path."""
-    hash_val = 0
-    for char in filepath:
-        hash_val = (hash_val * 31 + ord(char)) & 0xFFFFFFFFFFFFFFFF
-    if hash_val >= 0x8000000000000000:
-        hash_val -= 0x10000000000000000
-    return str(hash_val)
+def _get_source(plugin_name: str, filepath: Path) -> str:
+    """Determine preset source category from path."""
+    plugin_dir = NEURAL_DSP_PRESETS / plugin_name
+    try:
+        rel = filepath.parent.relative_to(plugin_dir)
+        return str(rel) if rel != Path() else "User"
+    except ValueError:
+        return "User"
 
 
 def _has_mapping(plugin_name: str) -> bool:

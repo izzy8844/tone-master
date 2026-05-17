@@ -2,9 +2,13 @@
 
 import { useEffect, useRef, useCallback, useState } from 'react'
 import { useAuthStore } from '@/store/authStore'
-import { useMapperStore } from '@/stores/mapperStore'
-import type { Trigger } from '@/lib/types'
+import { useMapperStore, type ToneTrigger } from '@/stores/mapperStore'
 import type { TriggerRow, PlaybackSettingsRow } from '@/lib/supabase/database.types'
+
+interface Trigger {
+  id: string; time: number; toneName: string; program: number
+  bank?: number; color?: string
+}
 
 type SyncStatus = 'idle' | 'syncing' | 'error'
 
@@ -121,7 +125,7 @@ export function useCloudSync() {
         id: p.id as string,
         name: (p.name as string) ?? 'Untitled Project',
         audioFile: p.audio_path as string | undefined,
-        triggers: triggersFromDb(p.triggers as TriggerRow[]),
+        triggers: triggersFromDb(p.triggers as TriggerRow[]) as unknown as ToneTrigger[],
         createdAt: new Date().toISOString(),
         updatedAt: new Date().toISOString(),
       })
