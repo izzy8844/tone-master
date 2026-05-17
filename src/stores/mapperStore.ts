@@ -58,6 +58,9 @@ interface MapperState {
   // Active trigger index (-1 = none)
   activeTriggerIndex: number
 
+  // Sidebar
+  sidebarOpen: boolean
+
   // Actions
   setConnected: (connected: boolean) => void
   setMidiPort: (port: string | null) => void
@@ -79,6 +82,8 @@ interface MapperState {
   updateTrigger: (id: string, updates: Partial<ToneTrigger>) => void
   reorderTriggers: () => void  // sort by time
 
+  toggleSidebar: () => void
+
   // AB Loop
   setAbLoop: (loop: { startMs: number; endMs: number } | null) => void
 }
@@ -98,6 +103,7 @@ export const useMapperStore = create<MapperState>((set) => ({
   durationMs: 0,
   audioFile: null,
   activeTriggerIndex: -1,
+  sidebarOpen: true,
 
   // Actions
   setConnected: (connected) => set({ isConnected: connected }),
@@ -113,6 +119,8 @@ export const useMapperStore = create<MapperState>((set) => ({
   setDurationMs: (ms) => set({ durationMs: ms }),
   setAudioFile: (file) => set({ audioFile: file }),
   setActiveTriggerIndex: (index) => set({ activeTriggerIndex: index }),
+
+  toggleSidebar: () => set((state) => ({ sidebarOpen: !state.sidebarOpen })),
 
   addTrigger: (trigger) => set((state) => {
     const triggers = [...(state.currentProject?.triggers || []), trigger].sort((a, b) => a.time - b.time)

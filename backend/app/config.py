@@ -3,13 +3,25 @@ from pathlib import Path
 
 SYSTEM = platform.system()  # "Darwin" or "Windows"
 
-# Neural DSP plugin preset directories
+# Neural DSP preset directories — check multiple possible locations
 if SYSTEM == "Darwin":
-    NEURAL_DSP_BASE = Path.home() / "Music" / "Neural DSP"
-    NEURAL_DSP_PRESETS = Path.home() / "Documents" / "Neural DSP"
+    _POSSIBLE_NEURAL_DSP_PATHS = [
+        Path.home() / "Documents" / "Neural DSP",
+        Path.home() / "Library" / "Audio" / "Presets" / "Neural DSP",
+        Path("/Library/Audio/Presets/Neural DSP"),
+        Path.home() / "Music" / "Neural DSP",
+    ]
 else:
-    NEURAL_DSP_BASE = Path.home() / "Documents" / "Neural DSP"
-    NEURAL_DSP_PRESETS = NEURAL_DSP_BASE
+    _POSSIBLE_NEURAL_DSP_PATHS = [
+        Path.home() / "Documents" / "Neural DSP",
+        Path(r"C:\Users\Public\Documents\Neural DSP"),
+    ]
+
+# Use the first path that exists, or default to ~/Documents/Neural DSP
+NEURAL_DSP_PRESETS = next(
+    (p for p in _POSSIBLE_NEURAL_DSP_PATHS if p.exists()),
+    Path.home() / "Documents" / "Neural DSP"
+)
 
 # App directories
 UPLOAD_DIR = Path("uploads")

@@ -1,10 +1,10 @@
 'use client'
 
-import { useState, useEffect, useCallback } from 'react'
+import { useState, useEffect, useCallback, useRef } from 'react'
 import Link from 'next/link'
 import {
   Save, Cloud, CloudOff, FolderOpen, Settings, BookOpen,
-  Pencil,
+  Pencil, Upload, Menu,
 } from 'lucide-react'
 import { useProjectStore } from '@/store/projectStore'
 import { useAuthStore } from '@/store/authStore'
@@ -32,9 +32,10 @@ export default function Home() {
   const isSignedIn = useAuthStore((s) => s.isSignedIn)
   const { guard } = useGatekeeper()
   const { saveToCloud, syncStatus } = useCloudSync()
-  const { updateTriggers } = useWebSocket()
+  const { updateTriggers, send } = useWebSocket()
+  const fileInputRef = useRef<HTMLInputElement>(null)
 
-  const { positionMs, durationMs, currentProject, setActiveTriggerIndex, updateTrigger, addTrigger } = useMapperStore()
+  const { positionMs, durationMs, currentProject, setActiveTriggerIndex, updateTrigger, addTrigger, sidebarOpen, toggleSidebar } = useMapperStore()
   const triggers = currentProject?.triggers || []
 
   const [isEditingName, setIsEditingName] = useState(false)
@@ -71,6 +72,34 @@ export default function Home() {
       })
       .catch(() => {})
   }, [])
+
+  // Fix 1: Audio file upload
+  const handleUpload = () => {
+    fileInputRef.current?.click()
+  }
+
+  const handleFileChange = async (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0]
+    if (!file) return
+    const formData = new FormData()
+    formData.append('file', file)
+    try {
+      const res = await fetch('/api/audio/upload', { method: 'POST', body: formData })
+      const data = await res.json()
+      if (data.success && data.path) {
+        useMapperStore.getState().setAudioFile(data.path)
+        send({ type: 'load_audio', path: data.path })
+      }
+    } catch {
+      const audioCtx = new AudioContext()
+      const arrayBuffer = await file.arrayBuffer()
+      const audioBuffer = await audioCtx.decodeAudioData(arrayBuffer)
+      useMapperStore.getState().setAudioFile(file.name)
+      useMapperStore.getState().setDurationMs(Math.round(audioBuffer.duration * 1000))
+      audioCtx.close()
+    }
+    e.target.value = ''
+  }
 
   // Sync triggers to WebSocket when they change
   useEffect(() => {
@@ -133,6 +162,13 @@ export default function Home() {
       {/* Header */}
       <header className="flex items-center justify-between px-6 py-3 border-b border-zinc-800 bg-zinc-950/50 backdrop-blur-sm shrink-0">
         <div className="flex items-center gap-3">
+          <button
+            onClick={toggleSidebar}
+            className="p-1.5 rounded-lg text-zinc-400 hover:text-white hover:bg-zinc-800 transition-colors"
+            title="Toggle sidebar"
+          >
+            <Menu className="w-4 h-4" />
+          </button>
           {isEditingName ? (
             <input
               type="text"
@@ -173,6 +209,23 @@ export default function Home() {
         </div>
 
         <div className="flex items-center gap-3">
+          {/* Upload */}
+          <input
+            ref={fileInputRef}
+            type="file"
+            accept=".mp3,.wav,.flac,.ogg,.m4a"
+            className="hidden"
+            onChange={handleFileChange}
+          />
+          <button
+            onClick={handleUpload}
+            className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs text-zinc-400 hover:text-white hover:bg-zinc-800 transition-colors"
+            title="Upload audio file"
+          >
+            <Upload className="w-4 h-4" />
+            <span>Upload</span>
+          </button>
+
           <ToneMappingSelector />
 
           <button
@@ -216,7 +269,7 @@ export default function Home() {
       {/* Body */}
       <div className="flex flex-1 overflow-hidden">
         {/* Sidebar */}
-        <ProjectSidebar />
+        {sidebarOpen && <ProjectSidebar />}
 
         {/* Main Content */}
         <main className="flex-1 flex flex-col overflow-hidden">

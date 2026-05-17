@@ -1,6 +1,6 @@
 """
 Scan Neural DSP plugin directories to find installed presets.
-Presets are .ndspp binary files in ~/Documents/Neural DSP/<Plugin>/Presets/
+Presets are .ndspp binary files in various possible locations.
 """
 import os
 from pathlib import Path
@@ -10,16 +10,21 @@ from ..models import PresetInfo, PluginInfo
 
 
 def scan_plugins() -> List[PluginInfo]:
-    """Scan for installed Neural DSP plugins by checking preset directories."""
+    """Scan for installed Neural DSP plugins."""
     plugins = []
     if not NEURAL_DSP_PRESETS.exists():
         return plugins
 
     for entry in sorted(NEURAL_DSP_PRESETS.iterdir()):
         if entry.is_dir() and not entry.name.startswith('.'):
-            preset_dir = entry / "Presets"
-            if preset_dir.exists():
-                presets = list(preset_dir.rglob("*.ndspp"))
+            # Check multiple possible preset locations within plugin folder
+            preset_dirs = [entry / "Presets", entry / "User Presets", entry]
+            presets = []
+            for pd in preset_dirs:
+                if pd.exists():
+                    presets.extend(pd.rglob("*.ndspp"))
+
+            if presets or (entry / "Presets").exists():
                 plugins.append(PluginInfo(
                     name=entry.name,
                     path=str(entry),
@@ -34,10 +39,20 @@ def scan_presets(plugin_name: str) -> List[PresetInfo]:
     preset_dir = NEURAL_DSP_PRESETS / plugin_name / "Presets"
     presets = []
     if not preset_dir.exists():
-        return presets
+        # Try alternate preset locations
+        for alt in ["User Presets", "."]:
+            alt_dir = (NEURAL_DSP_PRESETS / plugin_name / alt).resolve()
+            if alt_dir.exists():
+                preset_dir = alt_dir
+                break
+        else:
+            return presets
 
     for f in sorted(preset_dir.rglob("*.ndspp")):
-        rel = f.relative_to(preset_dir)
+        try:
+            rel = f.relative_to(preset_dir)
+        except ValueError:
+            rel = f
         source = "factory" if "Factory" in str(rel) else "user"
         presets.append(PresetInfo(
             name=f.stem,
