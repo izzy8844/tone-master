@@ -147,3 +147,16 @@ def delete_mapping(plugin_name: str, filename: str) -> bool:
 
 def auto_map(preset_names: List[str], start_pc: int = 0) -> List[PresetMapping]:
     return [PresetMapping(pc=start_pc + i, name=name) for i, name in enumerate(preset_names) if start_pc + i <= 127]
+
+
+def auto_map_and_install(plugin_name: str, preset_names: List[str]) -> dict:
+    """One-click: auto map PC numbers, generate XML, install to mappings dir."""
+    mappings = auto_map(preset_names)
+    xml_content, filename = generate_xml(plugin_name, mappings)
+    install_path = save_mapping(plugin_name, xml_content, filename)
+    return {"success": True, "path": install_path, "xml": xml_content, "filename": filename}
+
+
+def list_installed_mappings(plugin_name: str) -> List[dict]:
+    """List installed mapping files for a plugin with parsed tone data."""
+    return [m.model_dump() for m in list_mappings(plugin_name)]

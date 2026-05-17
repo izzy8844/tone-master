@@ -21,11 +21,13 @@ export function useWebSocket() {
     wsRef.current = globalWs
 
     globalWs.onopen = () => {
+      (window as any)._tm_ws = globalWs
       usePlaybackStore.getState().setWsConnected(true)
       usePlaybackStore.getState().setWsStatus('connected')
     }
 
     globalWs.onclose = () => {
+      if ((window as any)._tm_ws === globalWs) (window as any)._tm_ws = null
       usePlaybackStore.getState().setWsConnected(false)
       usePlaybackStore.getState().setWsStatus('disconnected')
       if (mountedRef.current) setTimeout(connect, 3000)

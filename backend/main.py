@@ -26,6 +26,7 @@ from app.services.project_manager import (
 from app.services.timeline_scheduler import TimelineScheduler, TriggerPoint
 from app.services.preset_scanner import scan_plugins, scan_presets
 from app.services.midi_xml_gen import generate_xml, save_mapping, list_mappings, get_mapping_tones, delete_mapping, auto_map
+from app.services.midi_learn_guide import start_session, get_current_step, execute_step, get_results
 from app.models import AutoMapRequest, GenerateXmlRequest, InstallXmlRequest, MidiTestRequest
 
 # ----- Global state -----
@@ -398,6 +399,9 @@ async def websocket_endpoint(ws: WebSocket):
                     "start_ms": msg.get("start_ms"),
                     "end_ms": msg.get("end_ms"),
                 }
+
+            elif msg_type == "ack":
+                pass  # Client heartbeat, ignore
 
             elif msg_type == "clear_loop":
                 _loop_state = {"enabled": False, "start_ms": None, "end_ms": None}

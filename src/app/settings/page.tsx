@@ -1,239 +1,186 @@
-﻿'use client'
-import { useState, useEffect } from 'react'
+'use client'
+import { useState, useEffect, useCallback } from 'react'
 import Link from 'next/link'
-import { ArrowLeft } from 'lucide-react'
+import { ArrowLeft, Search, GripVertical, X, Plus, Trash2, Play, Download, Upload } from 'lucide-react'
 import { useMapperStore } from '@/stores/mapperStore'
 
 export default function SettingsPage() {
-  const { midiPort, availablePorts, setMidiPort, setAvailablePorts } = useMapperStore()
-  const [plugins, setPlugins] = useState<Array<{ name: string; path: string; preset_count: number; has_mapping: boolean }>>([])
-  const [selectedPlugin, setSelectedPlugin] = useState('')
-  const [presets, setPresets] = useState<Array<{ name: string; uid?: string; path?: string; source: string }>>([])
-  const [showManualCreate, setShowManualCreate] = useState(false)
+  const {
+    midiPort, availablePorts, setMidiPort, setAvailablePorts,
+    selectedPlugin, setSelectedPlugin, plugins, setPlugins,
+    presets, setPresets, selectedPresets, togglePreset, selectAllPresets, deselectAllPresets,
+    presetOrder, movePreset, getMappings,
+    searchQuery, setSearchQuery, sourceFilter, setSourceFilter, loading, setLoading,
+    generatedXml, setGeneratedXml, installedPath, setInstalledPath,
+  } = useMapperStore()
+
+  const [showXmlPreview, setShowXmlPreview] = useState(false)
+  const [testResult, setTestResult] = useState('')
+  const [installMsg, setInstallMsg] = useState('')
 
   // Fetch MIDI ports
   useEffect(() => {
-    fetch('/api/midi/ports')
-      .then(r => r.json())
-      .then(data => setAvailablePorts(data.ports?.map((p: { name: string }) => p.name) || []))
-      .catch(() => {})
+    fetch('/api/midi/ports').then(r => r.json()).then(d => setAvailablePorts(d.ports?.map((p: any) => p.name) || [])).catch(() => {})
   }, [setAvailablePorts])
 
   // Fetch plugins
   useEffect(() => {
-    fetch('/api/plugins')
-      .then(r => r.json())
-      .then(data => setPlugins(data))
-      .catch(() => {})
-  }, [])
+    fetch('/api/plugins').then(r => r.json()).then(d => setPlugins(d.map((p: any) => p.name))).catch(() => {})
+  }, [setPlugins])
 
   // Fetch presets when plugin selected
   useEffect(() => {
-    if (selectedPlugin) {
-      fetch(`/api/presets?plugin=${encodeURIComponent(selectedPlugin)}`)
-        .then(r => r.json())
-        .then(data => setPresets(data))
-        .catch(() => {})
-    }
-  }, [selectedPlugin])
+    if (!selectedPlugin) { setPresets([]); return }
+    setLoading(true)
+    fetch(`/api/presets?plugin=${encodeURIComponent(selectedPlugin)}`).then(r => r.json()).then(d => {
+      setPresets(d)
+    }).catch(() => {}).finally(() => setLoading(false))
+  }, [selectedPlugin, setPresets, setLoading])
 
-  return (
-    <div className="min-h-screen bg-[#0a0a0a] text-white">
-      <header className="flex items-center gap-4 px-6 py-4 border-b border-zinc-800">
-        <Link href="/" className="text-zinc-400 hover:text-white transition-colors">
-          <ArrowLeft className="w-5 h-5" />
-        </Link>
-        <h1 className="text-lg font-semibold">Settings</h1>
-      </header>
+  // Filtered presets
+  const filteredPresets = presets.filter(p => {
+    if (sourceFilter && sourceFilter !== 'All Sources' && p.source !== sourceFilter) return false
+    if (searchQuery && !p.name.toLowerCase().includes(searchQuery.toLowerCase())) return false
+    return true
+  })
 
-      <main className="p-6 max-w-4xl mx-auto">
-        {/* MIDI Configuration */}
-        <section className="mb-8">
-          <h2 className="text-lg font-semibold text-zinc-200 mb-4">MIDI Output</h2>
-          <div className="bg-zinc-900 rounded-xl p-4 border border-zinc-800">
-            <label className="text-sm text-zinc-400 mb-2 block">Output Port</label>
-            <select
-              value={midiPort || ''}
-              onChange={(e) => {
-                const port = e.target.value
-                setMidiPort(port || null)
-                if (port) {
-                  const portIndex = availablePorts.indexOf(port)
-                  if (portIndex >= 0) {
-                    fetch(`/api/midi/connect?port_index=${portIndex}`, { method: 'POST' }).catch(() => {})
-                  }
-                }
-              }}
-              className="w-full bg-zinc-800 text-white rounded-lg px-3 py-2 border border-zinc-700"
-            >
-              <option value="">Select MIDI Port...</option>
-              {availablePorts.map((p) => (
-                <option key={p} value={p}>{p}</option>
-              ))}
-            </select>
-          </div>
-        </section>
-
-        {/* Tone Presets 锟?Universal */}
-        <section className="mb-8">
-          <h2 className="text-lg font-semibold text-zinc-200 mb-4">Tone Presets</h2>
-          <p className="text-sm text-zinc-400 mb-4">
-            ToneMaster works with any MIDI-capable device or plugin.
-            You can auto-scan Neural DSP plugins or manually create preset mappings for any gear.
-          </p>
-
-          <div className="bg-zinc-900 rounded-xl p-4 border border-zinc-800 space-y-4">
-            {/* Auto-detected (Neural DSP) */}
-            <div>
-              <h3 className="text-sm font-medium text-zinc-300 mb-2">Auto-detected (Neural DSP)</h3>
-              {plugins.length === 0 ? (
-                <p className="text-xs text-zinc-500">
-                  No Neural DSP plugins detected. You can still create manual preset mappings below.
-                </p>
-              ) : (
-                <div className="grid grid-cols-2 gap-3">
-                  {plugins.map((p) => (
-                    <button
-                      key={p.name}
-                      onClick={() => setSelectedPlugin(p.name)}
-                      className={`p-3 rounded-lg border text-left transition-colors ${
-                        selectedPlugin === p.name
-                          ? 'border-green-500 bg-green-500/10'
-                          : 'border-zinc-700 bg-zinc-800 hover:border-zinc-600'
-                      }`}
-                    >
-                      <div className="text-white font-medium">{p.name}</div>
-                      <div className="text-xs text-zinc-400">{p.preset_count} presets</div>
-                    </button>
-                  ))}
-                </div>
-              )}
-            </div>
-
-            {/* Manual Preset Mapping */}
-            <div className="border-t border-zinc-800 pt-4">
-              <h3 className="text-sm font-medium text-zinc-300 mb-2">Manual Preset Mapping</h3>
-              <p className="text-xs text-zinc-500 mb-3">
-                For Line 6, Fractal, Kemper, Boss, or any other MIDI device 锟?create a custom mapping manually.
-              </p>
-              <button
-                onClick={() => setShowManualCreate(!showManualCreate)}
-                className="px-3 py-2 rounded-lg bg-zinc-800 border border-zinc-700 hover:border-zinc-600 text-sm text-zinc-200 transition-colors"
-              >
-                + Create Manual Mapping
-              </button>
-
-              {showManualCreate && (
-                <div className="mt-4 p-4 bg-zinc-800 rounded-lg border border-zinc-700">
-                  <h4 className="text-sm font-medium text-white mb-3">Manual Tone Mapping</h4>
-                  <ManualPresetForm />
-                </div>
-              )}
-            </div>
-          </div>
-        </section>
-
-        {/* Preset List (when Neural DSP plugin selected) */}
-        {selectedPlugin && presets.length > 0 && (
-          <section className="mb-8">
-            <h2 className="text-lg font-semibold text-zinc-200 mb-4">
-              Presets 锟?{selectedPlugin}
-            </h2>
-            <div className="bg-zinc-900 rounded-xl p-4 border border-zinc-800 max-h-96 overflow-y-auto">
-              {presets.map((p, i) => (
-                <div key={i} className="flex items-center justify-between py-2 border-b border-zinc-800 last:border-0">
-                  <span className="text-zinc-200">{p.name}</span>
-                  <span className="text-xs text-zinc-500">{p.source}</span>
-                </div>
-              ))}
-            </div>
-          </section>
-        )}
-      </main>
-    </div>
-  )
-}
-
-function ManualPresetForm() {
-  const [entries, setEntries] = useState<Array<{ pc: number; name: string }>>([{ pc: 0, name: '' }])
-
-  const addEntry = () => {
-    const lastPC = entries[entries.length - 1]?.pc ?? -1
-    if (lastPC < 127) {
-      setEntries([...entries, { pc: lastPC + 1, name: '' }])
-    }
-  }
-
-  const updateEntry = (idx: number, field: 'pc' | 'name', value: string) => {
-    setEntries(prev => prev.map((e, i) =>
-      i === idx ? { ...e, [field]: field === 'pc' ? parseInt(value) || 0 : value } : e
-    ))
-  }
-
-  const removeEntry = (idx: number) => {
-    setEntries(prev => prev.filter((_, i) => i !== idx))
-  }
-
-  const handleGenerate = async () => {
-    const valid = entries.filter(e => e.name.trim())
-    if (!valid.length) return
+  const handleAutoMapInstall = async () => {
+    const mappings = getMappings()
+    if (!mappings.length) return
     try {
       const res = await fetch('/api/midi/automap', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({
-          plugin_name: 'Custom Device',
-          preset_names: valid.map(e => e.name.trim()),
-          start_pc: valid[0].pc,
-        })
+        method: 'POST', headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ plugin_name: selectedPlugin, preset_names: mappings.map(m => m.name), start_pc: 0 })
       })
       const data = await res.json()
-      if (data.xml_content && data.filename) {
-        await fetch('/api/midi/install', {
-          method: 'POST',
-          headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({
-            plugin_name: 'Custom Device',
-            xml_content: data.xml_content,
-            filename: data.filename,
-          })
-        })
-        alert('Mapping created and installed!')
-      }
-    } catch (e) {
-      console.error(e)
-    }
+      setGeneratedXml(data.xml_content, '')
+      const installRes = await fetch('/api/midi/install', {
+        method: 'POST', headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ plugin_name: selectedPlugin, xml_content: data.xml_content, filename: data.filename })
+      })
+      const installData = await installRes.json()
+      setInstalledPath(installData.installed_path || '')
+      setInstallMsg(installData.success ? 'Installed!' : 'Install failed')
+      setShowXmlPreview(true)
+    } catch (e) { console.error(e) }
   }
 
+  const handleTestMidi = async (pc: number) => {
+    try {
+      await fetch('/api/midi/test', {
+        method: 'POST', headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ port_name: midiPort, program: pc, channel: 0 })
+      })
+      setTestResult(`Sent PC ${pc}`)
+    } catch { setTestResult('Failed') }
+  }
+
+  const handleGenerateXml = () => {
+    const mappings = getMappings()
+    if (!mappings.length) return
+    fetch('/api/midi/generate', {
+      method: 'POST', headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ plugin_name: selectedPlugin, mappings: mappings.map(m => ({ pc: m.pc, name: m.name, uid: m.uid })) })
+    }).then(r => r.json()).then(d => {
+      setGeneratedXml(d.xml_content, '')
+      setShowXmlPreview(true)
+    })
+  }
+
+  const sources = ['All Sources', ...new Set(presets.map(p => p.source || 'User'))]
+
   return (
-    <div className="space-y-3">
-      <div className="space-y-2">
-        {entries.map((e, i) => (
-          <div key={i} className="flex items-center gap-2">
-            <input
-              type="number"
-              min={0}
-              max={127}
-              value={e.pc}
-              onChange={(ev) => updateEntry(i, 'pc', ev.target.value)}
-              className="w-16 bg-zinc-700 text-white rounded px-2 py-1 text-sm border border-zinc-600"
-              placeholder="PC"
-            />
-            <input
-              type="text"
-              value={e.name}
-              onChange={(ev) => updateEntry(i, 'name', ev.target.value)}
-              className="flex-1 bg-zinc-700 text-white rounded px-2 py-1 text-sm border border-zinc-600"
-              placeholder="Preset name"
-            />
-            <button onClick={() => removeEntry(i)} className="text-zinc-500 hover:text-red-400 text-sm">X</button>
+    <div className="min-h-screen bg-[#0a0a0a] text-white flex flex-col">
+      <header className="flex items-center gap-4 px-6 py-3 border-b border-zinc-800 shrink-0">
+        <Link href="/" className="text-zinc-400 hover:text-white"><ArrowLeft className="w-5 h-5" /></Link>
+        <h1 className="text-lg font-semibold">Tone Presets</h1>
+      </header>
+
+      <main className="flex-1 flex overflow-hidden">
+        {/* LEFT PANEL — Preset selection */}
+        <div className="w-1/2 border-r border-zinc-800 flex flex-col overflow-hidden">
+          <div className="p-4 space-y-3 border-b border-zinc-800 shrink-0">
+            <select value={selectedPlugin} onChange={e => { setSelectedPlugin(e.target.value); useMapperStore.getState().deselectAllPresets() }}
+              className="w-full bg-zinc-800 text-white rounded-lg px-3 py-2 border border-zinc-700 text-sm">
+              <option value="">Select plugin...</option>
+              {plugins.map(p => <option key={p} value={p}>{p}</option>)}
+            </select>
+            <div className="flex gap-2">
+              <select value={sourceFilter} onChange={e => setSourceFilter(e.target.value)}
+                className="flex-1 bg-zinc-800 text-white rounded-lg px-3 py-2 border border-zinc-700 text-sm">
+                {sources.map(s => <option key={s} value={s}>{s}</option>)}
+              </select>
+              <div className="relative flex-1">
+                <Search className="absolute left-2.5 top-2.5 w-4 h-4 text-zinc-500" />
+                <input value={searchQuery} onChange={e => setSearchQuery(e.target.value)}
+                  className="w-full bg-zinc-800 text-white rounded-lg pl-8 pr-3 py-2 border border-zinc-700 text-sm" placeholder="Search..." />
+              </div>
+            </div>
+            <div className="flex gap-2">
+              <button onClick={() => selectAllPresets(filteredPresets.map(p => p.name))}
+                className="px-3 py-1.5 rounded bg-zinc-800 hover:bg-zinc-700 text-xs">All</button>
+              <button onClick={() => deselectAllPresets(filteredPresets.map(p => p.name))}
+                className="px-3 py-1.5 rounded bg-zinc-800 hover:bg-zinc-700 text-xs">None</button>
+              <span className="text-xs text-zinc-500 self-center ml-auto">{selectedPresets.size} selected</span>
+            </div>
           </div>
-        ))}
-      </div>
-      <div className="flex gap-2">
-        <button onClick={addEntry} className="px-3 py-1.5 rounded bg-zinc-700 hover:bg-zinc-600 text-sm text-zinc-200">+ Add</button>
-        <button onClick={handleGenerate} className="px-3 py-1.5 rounded bg-green-600 hover:bg-green-500 text-sm text-white">Generate & Install</button>
-      </div>
+          <div className="flex-1 overflow-y-auto p-2">
+            {loading ? <p className="text-zinc-500 p-4">Loading...</p> :
+              filteredPresets.length === 0 ? <p className="text-zinc-500 p-4">No presets found</p> :
+              filteredPresets.map(p => (
+                <label key={p.name} className={`flex items-center gap-2 px-3 py-2 rounded cursor-pointer hover:bg-zinc-800/50 text-sm ${selectedPresets.has(p.name) ? 'bg-green-500/10' : ''}`}>
+                  <input type="checkbox" checked={selectedPresets.has(p.name)} onChange={() => togglePreset(p.name)} className="accent-green-500" />
+                  <span className="flex-1 text-zinc-200 truncate">{p.name}</span>
+                  <span className="text-xs text-zinc-600">{p.source}</span>
+                </label>
+              ))
+            }
+          </div>
+        </div>
+
+        {/* RIGHT PANEL — Selected presets + actions */}
+        <div className="w-1/2 flex flex-col overflow-hidden">
+          <div className="p-4 border-b border-zinc-800 shrink-0">
+            <h3 className="text-sm font-medium text-zinc-300">Selected Presets (drag to reorder)</h3>
+          </div>
+          <div className="flex-1 overflow-y-auto">
+            {presetOrder.length === 0 ? (
+              <p className="text-zinc-600 text-sm p-4">Select presets from the left panel</p>
+            ) : (
+              presetOrder.map((name, idx) => (
+                <div key={name} className="flex items-center gap-2 px-3 py-2 border-b border-zinc-800/50 hover:bg-zinc-800/30 text-sm">
+                  <GripVertical className="w-3.5 h-3.5 text-zinc-600 cursor-grab" />
+                  <span className="w-6 text-xs text-zinc-500 font-mono">#{idx}</span>
+                  <span className="flex-1 text-zinc-200 truncate">{name}</span>
+                  <button onClick={() => handleTestMidi(idx)} className="p-1 text-zinc-500 hover:text-green-400" title="Test PC"><Play className="w-3 h-3" /></button>
+                  <button onClick={() => { const s = useMapperStore.getState(); s.togglePreset(name) }}
+                    className="p-1 text-zinc-500 hover:text-red-400"><X className="w-3 h-3" /></button>
+                </div>
+              ))
+            )}
+          </div>
+          <div className="p-4 border-t border-zinc-800 space-y-2 shrink-0">
+            <div className="flex gap-2">
+              <button onClick={handleAutoMapInstall} disabled={presetOrder.length === 0}
+                className="flex-1 px-4 py-2 rounded-lg bg-green-600 hover:bg-green-500 disabled:bg-zinc-700 text-white text-sm font-medium">Auto Map &amp; Install</button>
+            </div>
+            <div className="flex gap-2">
+              <button onClick={handleGenerateXml} disabled={presetOrder.length === 0}
+                className="flex-1 px-3 py-1.5 rounded bg-zinc-800 hover:bg-zinc-700 text-xs">Generate XML</button>
+              <button onClick={() => handleTestMidi(0)} className="px-3 py-1.5 rounded bg-zinc-800 hover:bg-zinc-700 text-xs">Test MIDI</button>
+              <Link href="/guide" className="px-3 py-1.5 rounded bg-zinc-800 hover:bg-zinc-700 text-xs">Learn Guide</Link>
+            </div>
+            {installMsg && <p className="text-xs text-green-400">{installMsg}</p>}
+            {testResult && <p className="text-xs text-zinc-500">{testResult}</p>}
+            {showXmlPreview && generatedXml && (
+              <div className="mt-2">
+                <button onClick={() => setShowXmlPreview(!showXmlPreview)} className="text-xs text-zinc-400 hover:text-white">XML Preview {showXmlPreview ? '▲' : '▼'}</button>
+                <pre className="mt-1 p-2 bg-zinc-800 rounded text-xs text-zinc-400 max-h-40 overflow-auto">{generatedXml}</pre>
+              </div>
+            )}
+          </div>
+        </div>
+      </main>
     </div>
   )
 }
