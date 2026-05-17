@@ -4,18 +4,38 @@ import Link from 'next/link'
 import { ArrowLeft, Search, GripVertical, X, Play } from 'lucide-react'
 import { useMapperStore } from '@/stores/mapperStore'
 import { usePlaybackStore } from '@/stores/playbackStore'
+import { DndContext, closestCenter, PointerSensor, useSensor, useSensors } from '@dnd-kit/core'
+import { SortableContext, useSortable, verticalListSortingStrategy } from '@dnd-kit/sortable'
+import { CSS } from '@dnd-kit/utilities'
+import type { DragEndEvent } from '@dnd-kit/core'
+
+function SortableItem({ name, idx, onTest, onRemove }: { name: string; idx: number; onTest: () => void; onRemove: () => void }) {
+  const { attributes, listeners, setNodeRef, transform, transition } = useSortable({ id: name })
+  const style = { transform: CSS.Transform.toString(transform), transition }
+  return (
+    <div ref={setNodeRef} style={style} {...attributes} className="flex items-center gap-2 px-3 py-2 border-b border-zinc-800/50 hover:bg-zinc-800/30 text-sm">
+      <button {...listeners} className="cursor-grab touch-none"><GripVertical className="w-3.5 h-3.5 text-zinc-600" /></button>
+      <span className="w-6 text-xs text-zinc-500 font-mono">#{idx}</span>
+      <span className="flex-1 text-zinc-200 truncate">{name}</span>
+      <button onClick={onTest} className="p-1 text-zinc-500 hover:text-green-400"><Play className="w-3 h-3" /></button>
+      <button onClick={onRemove} className="p-1 text-zinc-500 hover:text-red-400"><X className="w-3 h-3" /></button>
+    </div>
+  )
+}
 
 export default function SettingsPage() {
   const { currentMidiPort, midiPorts, setCurrentMidiPort, setMidiPorts } = usePlaybackStore()
   const {
     selectedPlugin, setSelectedPlugin, plugins, setPlugins,
     presets, setPresets, selectedPresets, togglePreset, selectAllPresets, deselectAllPresets,
-    presetOrder, getMappings, loading, setLoading, searchQuery, setSearchQuery,
-    generatedXml, setGeneratedXml, installedPath, setInstalledPath, clearXml,
+    presetOrder, getMappings, movePreset, loading, setLoading, searchQuery, setSearchQuery,
+    generatedXml, setGeneratedXml, installedPath, setInstalledPath,
   } = useMapperStore()
 
   const [showXmlPreview, setShowXmlPreview] = useState(false)
   const [installMsg, setInstallMsg] = useState('')
+
+  const sensors = useSensors(useSensor(PointerSensor, { activationConstraint: { distance: 5 } }))
 
   useEffect(() => {
     fetch('/api/midi/ports').then(r => r.json()).then(d => setMidiPorts(d.ports?.map((p: any) => p.name) || [])).catch(() => {})
@@ -31,8 +51,15 @@ export default function SettingsPage() {
     fetch(`/api/presets?plugin=${encodeURIComponent(selectedPlugin)}`).then(r => r.json()).then(d => setPresets(d)).catch(() => {}).finally(() => setLoading(false))
   }, [selectedPlugin, setPresets, setLoading])
 
-  const filteredPresets = presets.filter(p =>
-    !searchQuery || p.name.toLowerCase().includes(searchQuery.toLowerCase()))
+  const filteredPresets = presets.filter(p => !searchQuery || p.name.toLowerCase().includes(searchQuery.toLowerCase()))
+
+  const handleDragEnd = (event: DragEndEvent) => {
+    const { active, over } = event
+    if (!over || active.id === over.id) return
+    const fromIdx = presetOrder.indexOf(String(active.id))
+    const toIdx = presetOrder.indexOf(String(over.id))
+    if (fromIdx >= 0 && toIdx >= 0) movePreset(fromIdx, toIdx)
+  }
 
   const handleAutoMapInstall = async () => {
     const mappings = getMappings()
@@ -42,8 +69,7 @@ export default function SettingsPage() {
       const data = await res.json()
       setGeneratedXml(data.xml_content, '')
       await fetch('/api/midi/install', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ plugin_name: selectedPlugin, xml_content: data.xml_content, filename: data.filename }) })
-      setInstallMsg('Installed!')
-      setShowXmlPreview(true)
+      setInstallMsg('Installed!'); setShowXmlPreview(true)
     } catch { setInstallMsg('Failed') }
   }
 
@@ -60,10 +86,9 @@ export default function SettingsPage() {
         <h1 className="text-lg font-semibold">Tone Presets</h1>
       </header>
       <main className="flex-1 flex overflow-hidden">
-        {/* LEFT */}
         <div className="w-1/2 border-r border-zinc-800 flex flex-col overflow-hidden">
           <div className="p-4 space-y-3 border-b border-zinc-800 shrink-0">
-            <select value={selectedPlugin} onChange={e => { setSelectedPlugin(e.target.value); useMapperStore.getState().deselectAllPresets() }} className="w-full bg-zinc-800 text-white rounded-lg px-3 py-2 border border-zinc-700 text-sm">
+            <select value={selectedPlugin} onChange={e => { setSelectedPlugin(e.target.value); deselectAllPresets() }} className="w-full bg-zinc-800 text-white rounded-lg px-3 py-2 border border-zinc-700 text-sm">
               <option value="">Select plugin...</option>
               {plugins.map(p => <option key={p} value={p}>{p}</option>)}
             </select>
@@ -86,19 +111,24 @@ export default function SettingsPage() {
             ))}
           </div>
         </div>
-        {/* RIGHT */}
         <div className="w-1/2 flex flex-col overflow-hidden">
           <div className="p-4 border-b border-zinc-800 shrink-0"><h3 className="text-sm font-medium text-zinc-300">Selected (drag to reorder)</h3></div>
           <div className="flex-1 overflow-y-auto">
-            {presetOrder.length === 0 ? <p className="text-zinc-600 text-sm p-4">Select presets from the left panel</p> : presetOrder.map((name, idx) => (
-              <div key={name} className="flex items-center gap-2 px-3 py-2 border-b border-zinc-800/50 hover:bg-zinc-800/30 text-sm">
-                <GripVertical className="w-3.5 h-3.5 text-zinc-600 cursor-grab" />
-                <span className="w-6 text-xs text-zinc-500 font-mono">#{idx}</span>
-                <span className="flex-1 text-zinc-200 truncate">{name}</span>
-                <button onClick={async () => { await fetch('/api/midi/test', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ port_name: currentMidiPort, program: idx, channel: 0 }) }) }} className="p-1 text-zinc-500 hover:text-green-400"><Play className="w-3 h-3" /></button>
-                <button onClick={() => togglePreset(name)} className="p-1 text-zinc-500 hover:text-red-400"><X className="w-3 h-3" /></button>
-              </div>
-            ))}
+            <DndContext sensors={sensors} collisionDetection={closestCenter} onDragEnd={handleDragEnd}>
+              <SortableContext items={presetOrder} strategy={verticalListSortingStrategy}>
+                {presetOrder.length === 0 ? <p className="text-zinc-600 text-sm p-4">Select presets from the left panel</p> :
+                  presetOrder.map((name, idx) => (
+                    <SortableItem
+                      key={name}
+                      name={name}
+                      idx={idx}
+                      onTest={async () => { await fetch('/api/midi/test', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ port_name: currentMidiPort, program: idx, channel: 0 }) }) }}
+                      onRemove={() => togglePreset(name)}
+                    />
+                  ))
+                }
+              </SortableContext>
+            </DndContext>
           </div>
           <div className="p-4 border-t border-zinc-800 space-y-2 shrink-0">
             <button onClick={handleAutoMapInstall} disabled={presetOrder.length === 0} className="w-full px-4 py-2 rounded-lg bg-green-600 hover:bg-green-500 disabled:bg-zinc-700 text-white text-sm font-medium">Auto Map & Install</button>
