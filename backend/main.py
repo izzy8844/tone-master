@@ -4,6 +4,9 @@ import uuid
 import time
 from pathlib import Path
 
+# Patch pydub for Python 3.13+ (audioop removed)
+import patch_audioop  # noqa: F401
+
 from fastapi import FastAPI, WebSocket, WebSocketDisconnect, File, UploadFile, Query
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import JSONResponse
