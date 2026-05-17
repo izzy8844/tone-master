@@ -3,7 +3,7 @@
 import { useState, useEffect, useCallback } from 'react'
 import Link from 'next/link'
 import {
-  Save, Cloud, CloudOff, FolderOpen, Settings,
+  Save, Cloud, CloudOff, FolderOpen, Settings, BookOpen,
   Pencil,
 } from 'lucide-react'
 import { useProjectStore } from '@/store/projectStore'
@@ -19,7 +19,7 @@ import { TriggerList } from '@/components/TriggerList'
 import { ProjectSidebar } from '@/components/ProjectSidebar'
 import { StatusBar } from '@/components/StatusBar'
 import { ToneMappingSelector } from '@/components/ToneMappingSelector'
-import { MidiLearnGuide } from '@/components/MidiLearnGuide'
+
 import ToneAddDialog from '@/components/ToneAddDialog'
 import ExportButton from '@/components/ExportButton'
 import UserMenu from '@/components/UserMenu'
@@ -201,7 +201,13 @@ export default function Home() {
             Tones
           </Link>
 
-          <MidiLearnGuide />
+          <Link
+            href="/guide"
+            className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-zinc-400 hover:text-zinc-200 text-xs transition-colors"
+          >
+            <BookOpen className="w-3.5 h-3.5" />
+            Guide
+          </Link>
 
           <UserMenu />
         </div>
