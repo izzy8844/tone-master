@@ -6,7 +6,6 @@ import {
   Save, Cloud, CloudOff, FolderOpen, Settings, BookOpen,
   Pencil, Upload, Menu,
 } from 'lucide-react'
-import { useProjectStore } from '@/store/projectStore'
 import { useAuthStore } from '@/store/authStore'
 import { useMapperStore } from '@/stores/mapperStore'
 import { useGatekeeper } from '@/hooks/useGatekeeper'
@@ -26,9 +25,7 @@ import UserMenu from '@/components/UserMenu'
 import { toast } from '@/components/Toast'
 
 export default function Home() {
-  const projectName = useProjectStore((s) => s.projectName)
-  const setProjectName = useProjectStore((s) => s.setProjectName)
-  const isDemo = useProjectStore((s) => s.isDemo)
+  const projectName = useMapperStore((s) => s.currentProject?.name ?? 'Untitled')
   const isSignedIn = useAuthStore((s) => s.isSignedIn)
   const { guard } = useGatekeeper()
   const { saveToCloud, syncStatus } = useCloudSync()
@@ -157,6 +154,13 @@ export default function Home() {
     })
   }
 
+  const setProjectName = (name: string) => {
+    const cp = useMapperStore.getState().currentProject
+    if (cp) {
+      useMapperStore.getState().setCurrentProject({ ...cp, name, updatedAt: new Date().toISOString() })
+    }
+  }
+
   const handleAddTrigger = useCallback(
     (time: number) => {
       setAddDialogTime(time)
@@ -218,7 +222,7 @@ export default function Home() {
               <Pencil className="w-3.5 h-3.5 text-zinc-700 group-hover:text-zinc-400 transition-colors shrink-0" />
             </button>
           )}
-          {isDemo && (
+          {projectName === 'Untitled' && (
             <span className="text-[10px] font-bold px-1.5 py-0.5 rounded bg-amber-500/20 text-amber-400 uppercase tracking-wider">
               Demo
             </span>

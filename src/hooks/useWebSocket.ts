@@ -43,6 +43,9 @@ export function useWebSocket() {
           break
         case 'playback_state':
           s.setIsPlaying(msg.is_playing)
+          if (!msg.is_playing) {
+            s.setActiveTriggerIndex(-1)
+          }
           if (msg.position_ms !== undefined) {
             s.setPositionMs(msg.position_ms)
           } else if (msg.current_time !== undefined) {
@@ -50,6 +53,9 @@ export function useWebSocket() {
           }
           if (msg.duration_ms) s.setDurationMs(msg.duration_ms)
           else if (msg.duration) s.setDurationMs(msg.duration * 1000)
+          break
+        case 'error':
+          console.error('[WS Error]', msg.message)
           break
       }
     }

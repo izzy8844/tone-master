@@ -1,57 +1,47 @@
-"use client";
+'use client'
 
-import { useEffect, useRef } from "react";
-import { usePlaybackStore } from "@/store/playbackStore";
-import { useProjectStore } from "@/store/projectStore";
-import { sendProgramChange, getCurrentPortId } from "@/lib/midi";
+import { useEffect, useRef } from 'react'
+import { useMapperStore } from '@/stores/mapperStore'
+import { sendProgramChange, getCurrentPortId } from '@/lib/midi'
 
 export function useMidiTrigger() {
-  const isPlaying = usePlaybackStore((s) => s.isPlaying);
-  const currentTick = usePlaybackStore((s) => s.currentTick);
-  const triggers = useProjectStore((s) => s.triggers);
+  const isPlaying = useMapperStore((s) => s.isPlaying)
+  const positionMs = useMapperStore((s) => s.positionMs)
+  const triggers = useMapperStore((s) => s.currentProject?.triggers ?? [])
 
-  const lastFiredRef = useRef<string | null>(null);
-  const prevTickRef = useRef<number>(0);
+  const lastFiredRef = useRef<string | null>(null)
+  const prevPosRef = useRef<number>(0)
 
   // Main trigger detection
   useEffect(() => {
-    if (!isPlaying) return;
-    if (!getCurrentPortId()) return;
-    if (triggers.length === 0) return;
+    if (!isPlaying) return
+    if (!getCurrentPortId()) return
+    if (triggers.length === 0) return
 
-    const currentTime = currentTick;
-    const prevTick = prevTickRef.current;
+    const currentMs = positionMs
+    const prevMs = prevPosRef.current
 
-    // Forward playback: check triggers in (prevTick, currentTime]
-    if (currentTime > prevTick) {
+    // Forward playback: check triggers in (prevMs, currentMs]
+    if (currentMs > prevMs) {
       for (const trigger of triggers) {
-        if (trigger.time > prevTick && trigger.time <= currentTime) {
+        const triggerMs = trigger.time * 1000
+        if (triggerMs > prevMs && triggerMs <= currentMs) {
           if (trigger.id !== lastFiredRef.current) {
-            sendProgramChange(trigger.program, 0);
-            lastFiredRef.current = trigger.id;
+            sendProgramChange(trigger.program, 0)
+            lastFiredRef.current = trigger.id
           }
         }
       }
     }
 
-    // Exact position check (for seek-to-exact-time)
-    for (const trigger of triggers) {
-      if (Math.abs(trigger.time - currentTime) < 0.05) {
-        if (trigger.id !== lastFiredRef.current) {
-          sendProgramChange(trigger.program, 0);
-          lastFiredRef.current = trigger.id;
-        }
-      }
-    }
-
-    prevTickRef.current = currentTime;
-  }, [currentTick, isPlaying, triggers]);
+    prevPosRef.current = currentMs
+  }, [positionMs, isPlaying, triggers])
 
   // Reset on stop
   useEffect(() => {
     if (!isPlaying) {
-      lastFiredRef.current = null;
-      prevTickRef.current = currentTick;
+      lastFiredRef.current = null
+      prevPosRef.current = positionMs
     }
-  }, [isPlaying, currentTick]);
+  }, [isPlaying, positionMs])
 }

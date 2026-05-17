@@ -298,16 +298,6 @@ async def playback_loop(ws: WebSocket):
             # Also broadcast legacy playback_state for backward compat
             await manager.broadcast(state)
 
-            # Check MIDI engine triggers (legacy)
-            fired = midi_engine.check_triggers(current_time)
-            for trigger in fired:
-                await manager.broadcast({
-                    "type": "trigger_fired",
-                    "trigger_id": trigger.get("id"),
-                    "program": trigger.get("program"),
-                    "tone_name": trigger.get("toneName", ""),
-                })
-
             await asyncio.sleep(1 / 30)
 
         # Final state after stop
@@ -369,12 +359,7 @@ async def handle_ws_message(ws: WebSocket, msg: dict) -> None:
     elif msg_type == "update_triggers":
         triggers = msg.get("triggers", [])
         scheduler.set_triggers(triggers)
-        # Also update legacy midi_engine
-        midi_engine.set_triggers(triggers)
         await manager.broadcast({"type": "triggers_updated", "count": len(triggers)})
-
-    elif msg_type == "set_triggers":
-        midi_engine.set_triggers(msg.get("triggers", []))
 
     elif msg_type == "set_midi_port":
         name = msg.get("name", "")
