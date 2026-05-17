@@ -42,19 +42,20 @@ const RULES: Record<GateAction, Rule> = {
 export function useGatekeeper() {
   const tier = useAuthStore((s) => s.tier)
   const openGate = useAuthStore((s) => s.openGate)
-  const triggers = useMapperStore((s) => s.currentProject?.triggers ?? [])
+  const triggers = useMapperStore((s) => s.currentProject?.triggers)
+  const triggerCount = useMapperStore((s) => s.currentProject?.triggers?.length ?? 0)
 
   const guard = useCallback(
     (action: GateAction, callback: () => void) => {
       const rule = RULES[action]
-      const payload = rule.check({ tier, triggerCount: triggers.length })
+      const payload = rule.check({ tier, triggerCount: triggerCount })
       if (payload) {
         openGate(payload)
       } else {
         callback()
       }
     },
-    [tier, openGate, triggers.length]
+    [tier, openGate, triggerCount]
   )
 
   return { guard }
