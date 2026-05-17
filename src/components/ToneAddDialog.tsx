@@ -1,72 +1,85 @@
-"use client";
+'use client'
 
-import { useState } from "react";
-import { X, Plus } from "lucide-react";
-import { useProjectStore } from "@/store/projectStore";
-import { useGatekeeper } from "@/hooks/useGatekeeper";
-import type { Trigger } from "@/lib/types";
+import { useState } from 'react'
+import { X, Plus } from 'lucide-react'
+import { useProjectStore } from '@/store/projectStore'
+import { useMapperStore } from '@/stores/mapperStore'
+import { useGatekeeper } from '@/hooks/useGatekeeper'
+import type { Trigger } from '@/lib/types'
 
 const TONE_PRESETS = [
-  { name: "Clean Chorus", program: 1, color: "#22c55e" },
-  { name: "Crunch Overdrive", program: 25, color: "#f59e0b" },
-  { name: "Lead Distortion", program: 30, color: "#ef4444" },
-  { name: "Jazz Clean", program: 3, color: "#3b82f6" },
-  { name: "Metal High Gain", program: 29, color: "#a855f7" },
-  { name: "Acoustic Sim", program: 5, color: "#06b6d4" },
-  { name: "Blues Overdrive", program: 26, color: "#ec4899" },
-  { name: "Ambient Reverb", program: 8, color: "#8b5cf6" },
-];
+  { name: 'Clean Chorus', program: 1, color: '#22c55e' },
+  { name: 'Crunch Overdrive', program: 25, color: '#f59e0b' },
+  { name: 'Lead Distortion', program: 30, color: '#ef4444' },
+  { name: 'Jazz Clean', program: 3, color: '#3b82f6' },
+  { name: 'Metal High Gain', program: 29, color: '#a855f7' },
+  { name: 'Acoustic Sim', program: 5, color: '#06b6d4' },
+  { name: 'Blues Overdrive', program: 26, color: '#ec4899' },
+  { name: 'Ambient Reverb', program: 8, color: '#8b5cf6' },
+]
 
 interface Props {
-  open: boolean;
-  onClose: () => void;
-  time: number;
+  open: boolean
+  onClose: () => void
+  time: number
 }
 
 function formatTime(sec: number): string {
-  const m = Math.floor(sec / 60);
-  const s = sec % 60;
-  return `${m}:${s.toString().padStart(2, "0")}`;
+  const m = Math.floor(sec / 60)
+  const s = sec % 60
+  return `${m}:${s.toString().padStart(2, '0')}`
 }
 
 export default function ToneAddDialog({ open, onClose, time }: Props) {
-  const addTrigger = useProjectStore((s) => s.addTrigger);
-  const { guard } = useGatekeeper();
-  const [customName, setCustomName] = useState("");
-  const [customPC, setCustomPC] = useState("");
+  const addTrigger = useProjectStore((s) => s.addTrigger)
+  const { guard } = useGatekeeper()
+  const [customName, setCustomName] = useState('')
+  const [customPC, setCustomPC] = useState('')
 
-  if (!open) return null;
+  // Phase 2: Use mapperStore mapping tones
+  const mappingTones = useMapperStore((s) => s.mappingTones)
 
-  const handleAdd = (preset: (typeof TONE_PRESETS)[number]) => {
-    guard("add_trigger", () => {
+  if (!open) return null
+
+  const handleAdd = (toneName: string, program: number, color: string = '#1db954') => {
+    guard('add_trigger', () => {
       const trigger: Trigger = {
         id: `t-${Date.now()}-${Math.random().toString(36).slice(2, 6)}`,
         time,
-        toneName: preset.name,
-        program: preset.program,
-        color: preset.color,
-      };
-      addTrigger(trigger);
-    });
-  };
+        toneName,
+        program,
+        color,
+      }
+      addTrigger(trigger)
+    })
+  }
 
   const handleCustomAdd = () => {
-    if (!customName.trim() || !customPC.trim()) return;
-    const pc = parseInt(customPC, 10);
-    if (isNaN(pc) || pc < 0 || pc > 127) return;
-    guard("add_trigger", () => {
+    if (!customName.trim() || !customPC.trim()) return
+    const pc = parseInt(customPC, 10)
+    if (isNaN(pc) || pc < 0 || pc > 127) return
+    guard('add_trigger', () => {
       const trigger: Trigger = {
         id: `t-${Date.now()}-${Math.random().toString(36).slice(2, 6)}`,
         time,
         toneName: customName.trim(),
         program: pc,
-        color: "#1db954",
-      };
-      addTrigger(trigger);
-    });
-    setCustomName("");
-    setCustomPC("");
-  };
+        color: '#1db954',
+      }
+      addTrigger(trigger)
+    })
+    setCustomName('')
+    setCustomPC('')
+  }
+
+  // Phase 2: Merge hardcoded presets with mapping tones
+  const displayTones = mappingTones.length > 0
+    ? mappingTones.map((t) => ({
+        name: t.name,
+        program: t.pc,
+        color: '#1db954',
+      }))
+    : TONE_PRESETS
 
   return (
     <div className="fixed inset-0 z-50 bg-black/60 backdrop-blur-sm flex items-center justify-center p-4">
@@ -74,7 +87,7 @@ export default function ToneAddDialog({ open, onClose, time }: Props) {
         {/* Header */}
         <div className="flex items-center justify-between mb-4">
           <div>
-            <h2 className="text-lg font-semibold text-white">Add Tone Preset</h2>
+            <h2 className="text-lg font-semibold text-white">Add Tone</h2>
             <p className="text-xs text-zinc-500">at {formatTime(time)}</p>
           </div>
           <button onClick={onClose} className="text-zinc-500 hover:text-zinc-300">
@@ -82,12 +95,12 @@ export default function ToneAddDialog({ open, onClose, time }: Props) {
           </button>
         </div>
 
-        {/* Preset grid */}
+        {/* Tone grid — 2 columns */}
         <div className="grid grid-cols-2 gap-2 mb-6">
-          {TONE_PRESETS.map((p) => (
+          {displayTones.map((p) => (
             <button
-              key={p.program}
-              onClick={() => handleAdd(p)}
+              key={`${p.program}-${p.name}`}
+              onClick={() => handleAdd(p.name, p.program, p.color)}
               className="flex items-center gap-3 p-3 rounded-lg border border-zinc-700 hover:border-green-500/50 hover:bg-zinc-800 transition-colors text-left"
             >
               <span
@@ -132,5 +145,5 @@ export default function ToneAddDialog({ open, onClose, time }: Props) {
         </div>
       </div>
     </div>
-  );
+  )
 }
