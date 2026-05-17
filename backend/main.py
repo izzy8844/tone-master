@@ -1,4 +1,4 @@
-"""
+﻿"""
 ToneMaster AI Backend — Real audio engine + WebSocket + Project persistence.
 """
 import asyncio
@@ -400,6 +400,19 @@ async def websocket_endpoint(ws: WebSocket):
                     "end_ms": msg.get("end_ms"),
                 }
 
+            elif msg_type == "trigger_add":
+                t = msg.get("trigger", {})
+                if scheduler:
+                    from app.services.timeline_scheduler import TriggerPoint
+                    scheduler._triggers.append(TriggerPoint(id=t.get("id",""), time_ms=t.get("time_ms", t.get("time",0)*1000), program=t.get("pc", t.get("program", 0)), name=t.get("name","")))
+                    scheduler._triggers.sort(key=lambda x: x.time_ms)
+                    scheduler.reset_to(audio.playhead_ms)
+
+            elif msg_type == "trigger_delete":
+                tid = msg.get("trigger_id", "")
+                if scheduler:
+                    scheduler._triggers = [t for t in scheduler._triggers if t.id != tid]
+
             elif msg_type == "ack":
                 pass  # Client heartbeat, ignore
 
@@ -422,4 +435,6 @@ async def websocket_endpoint(ws: WebSocket):
 
 if __name__ == "__main__":
     import uvicorn
+    from app.services.midi_controller import init_virtual_port
+    init_virtual_port()
     uvicorn.run("main:app", host="0.0.0.0", port=8765)

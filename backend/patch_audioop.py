@@ -1,5 +1,13 @@
-"""Patch for Python 3.13+: register pyaudioop alias for pydub compatibility."""
+"""Patch for Python 3.13+: register audioop from audioop-lts for pydub compatibility."""
 import sys
-import audioop
+try:
+    import audioop
+except ImportError:
+    try:
+        import audioop_lts as audioop
+    except ImportError:
+        audioop = None
 
-sys.modules["pyaudioop"] = audioop
+if audioop:
+    sys.modules['audioop'] = audioop
+    sys.modules['pyaudioop'] = audioop
