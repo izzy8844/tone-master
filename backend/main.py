@@ -68,6 +68,19 @@ def _on_scheduler_trigger(trigger):
         )
     except Exception as e:
         print(f"[Scheduler] MIDI send error: {e}")
+    # Broadcast midi_trigger to all WebSocket clients
+    try:
+        idx = scheduler.triggers.index(trigger) if trigger in scheduler.triggers else -1
+        asyncio.create_task(manager.broadcast({
+            "type": "midi_trigger",
+            "trigger_id": trigger.id,
+            "index": idx,
+            "program": trigger.program,
+            "name": trigger.name,
+            "time_ms": trigger.time_ms,
+        }))
+    except Exception as e:
+        print(f"[Scheduler] Broadcast error: {e}")
 
 scheduler = TimelineScheduler(on_trigger=_on_scheduler_trigger)
 _playback_task: asyncio.Task | None = None

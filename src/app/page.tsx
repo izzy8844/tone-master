@@ -35,13 +35,30 @@ export default function Home() {
   const { updateTriggers, send } = useWebSocket()
   const fileInputRef = useRef<HTMLInputElement>(null)
 
-  const { positionMs, durationMs, currentProject, setActiveTriggerIndex, updateTrigger, addTrigger, sidebarOpen, toggleSidebar } = useMapperStore()
+  const { positionMs, durationMs, currentProject, setActiveTriggerIndex, updateTrigger, addTrigger, sidebarOpen, toggleSidebar, audioFile } = useMapperStore()
   const triggers = currentProject?.triggers || []
 
   const [isEditingName, setIsEditingName] = useState(false)
   const [editName, setEditName] = useState(projectName)
   const [addDialogOpen, setAddDialogOpen] = useState(false)
   const [addDialogTime, setAddDialogTime] = useState(0)
+
+  // P0-2: Waveform peaks state
+  const [waveformData, setWaveformData] = useState<number[] | undefined>(undefined)
+
+  // P0-2: Fetch waveform when audio loads
+  useEffect(() => {
+    if (!audioFile) {
+      setWaveformData(undefined)
+      return
+    }
+    fetch(`/api/audio/waveform?path=${encodeURIComponent(audioFile)}&num_peaks=800`)
+      .then(r => r.ok ? r.json() : null)
+      .then(data => {
+        if (data?.peaks) setWaveformData(data.peaks)
+      })
+      .catch(() => {})
+  }, [audioFile])
 
   // Fix 1: Initialize currentProject on mount
   useEffect(() => {
@@ -276,7 +293,17 @@ export default function Home() {
           {/* Timeline Section */}
           <div className="flex-1 flex flex-col px-6 py-4 overflow-y-auto gap-4">
             <TimelineRuler />
-            <Waveform waveformData={undefined} onTriggerDrag={handleTriggerDrag} />
+            <Waveform waveformData={waveformData} onTriggerDrag={handleTriggerDrag} onAddTrigger={(timeMs) => handleAddTrigger(timeMs / 1000)} />
+            <div className="flex items-center justify-between px-4 py-2 border-b border-zinc-800">
+              <span className="text-xs text-zinc-500 uppercase tracking-wide">Triggers</span>
+              <button
+                onClick={() => handleAddTrigger(positionMs / 1000)}
+                className="w-6 h-6 flex items-center justify-center rounded-full bg-green-600 hover:bg-green-500 text-white text-sm transition-colors"
+                title="Add trigger at current position"
+              >
+                +
+              </button>
+            </div>
             <TriggerList />
           </div>
 

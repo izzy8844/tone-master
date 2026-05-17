@@ -1,19 +1,18 @@
 'use client'
-
 import { useRef, useEffect, useCallback } from 'react'
 import { useMapperStore } from '@/stores/mapperStore'
 
 interface WaveformProps {
   waveformData?: number[]
   onTriggerDrag?: (triggerId: string, newTimeMs: number) => void
+  onAddTrigger?: (timeMs: number) => void
 }
 
-export function Waveform({ waveformData, onTriggerDrag }: WaveformProps) {
+export function Waveform({ waveformData, onTriggerDrag, onAddTrigger }: WaveformProps) {
   const canvasRef = useRef<HTMLCanvasElement>(null)
   const { positionMs, durationMs, currentProject, activeTriggerIndex, isPlaying } = useMapperStore()
   const triggers = currentProject?.triggers || []
   const positionRef = useRef(positionMs)
-  const rafRef = useRef<number>(0)
 
   positionRef.current = positionMs
 
@@ -76,10 +75,8 @@ export function Waveform({ waveformData, onTriggerDrag }: WaveformProps) {
     }
   }, [waveformData, durationMs, triggers, activeTriggerIndex, currentProject?.abLoop])
 
-  // Full redraw on data changes
   useEffect(() => { draw(positionRef.current) }, [draw])
 
-  // RAF-based playhead redraw when playing
   useEffect(() => {
     let rafId: number
     const loop = () => {
@@ -117,11 +114,22 @@ export function Waveform({ waveformData, onTriggerDrag }: WaveformProps) {
     document.addEventListener('mouseup', onUp)
   }, [durationMs, triggers, onTriggerDrag])
 
+  const handleDoubleClick = useCallback((e: React.MouseEvent) => {
+    if (!onAddTrigger || durationMs === 0) return
+    const canvas = canvasRef.current
+    if (!canvas) return
+    const rect = canvas.getBoundingClientRect()
+    const clickX = e.clientX - rect.left
+    const timeMs = (clickX / rect.width) * durationMs
+    onAddTrigger(timeMs)
+  }, [durationMs, onAddTrigger])
+
   return (
     <canvas
       ref={canvasRef}
       className="w-full h-32 rounded-lg cursor-crosshair"
       onMouseDown={handleMouseDown}
+      onDoubleClick={handleDoubleClick}
     />
   )
 }
