@@ -1,24 +1,34 @@
 'use client'
 import { ChevronDown } from 'lucide-react'
-import { useState } from 'react'
+import { useState, useRef, useEffect } from 'react'
 import { useMapperStore } from '@/stores/mapperStore'
 
 export function ToneMappingSelector() {
   const { currentMapping, allMappings, setCurrentMapping, setMappingTones } = useMapperStore()
   const [open, setOpen] = useState(false)
+  const ref = useRef<HTMLDivElement>(null)
+
+  // Click outside to close
+  useEffect(() => {
+    if (!open) return
+    const handler = (e: MouseEvent) => {
+      if (ref.current && !ref.current.contains(e.target as Node)) setOpen(false)
+    }
+    document.addEventListener('mousedown', handler)
+    return () => document.removeEventListener('mousedown', handler)
+  }, [open])
 
   const handleSelect = async (mapping: typeof currentMapping) => {
     if (!mapping) return
     setCurrentMapping(mapping)
     setOpen(false)
-    // Load tones for this mapping
     const res = await fetch(`/api/midi/mappings/${encodeURIComponent(mapping.pluginName)}/${encodeURIComponent(mapping.filename)}/tones`)
     const tones = await res.json()
     setMappingTones(tones)
   }
 
   return (
-    <div className="relative">
+    <div ref={ref} className="relative">
       <button
         onClick={() => setOpen(!open)}
         className="flex items-center gap-2 px-3 py-1.5 rounded-lg bg-zinc-800 border border-zinc-700 hover:border-zinc-600 transition-colors"

@@ -76,11 +76,14 @@ class AudioEngine:
             self._play_start_time = self._current_time
 
     def get_state(self) -> dict:
+        ct = self.current_time
         return {
             "type": "playback_state",
             "is_playing": self._is_playing,
-            "current_time": round(self.current_time, 3),
+            "current_time": round(ct, 3),
+            "position_ms": round(ct * 1000),
             "duration": round(self._duration, 3),
+            "duration_ms": round(self._duration * 1000),
             "audio_path": self._audio_path,
         }
 

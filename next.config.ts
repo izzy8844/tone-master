@@ -13,6 +13,14 @@ const nextConfig: NextConfig = {
         source: "/api/midi/:path*",
         destination: `${BACKEND_URL}/api/midi/:path*`,
       },
+      {
+        source: "/api/plugins",
+        destination: `${BACKEND_URL}/api/plugins`,
+      },
+      {
+        source: "/api/presets",
+        destination: `${BACKEND_URL}/api/presets`,
+      },
     ];
   },
 };

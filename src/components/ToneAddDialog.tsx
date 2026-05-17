@@ -2,10 +2,8 @@
 
 import { useState } from 'react'
 import { X, Plus } from 'lucide-react'
-import { useProjectStore } from '@/store/projectStore'
 import { useMapperStore } from '@/stores/mapperStore'
 import { useGatekeeper } from '@/hooks/useGatekeeper'
-import type { Trigger } from '@/lib/types'
 
 const TONE_PRESETS = [
   { name: 'Clean Chorus', program: 1, color: '#22c55e' },
@@ -31,7 +29,7 @@ function formatTime(sec: number): string {
 }
 
 export default function ToneAddDialog({ open, onClose, time }: Props) {
-  const addTrigger = useProjectStore((s) => s.addTrigger)
+  const addTrigger = useMapperStore((s) => s.addTrigger)
   const { guard } = useGatekeeper()
   const [customName, setCustomName] = useState('')
   const [customPC, setCustomPC] = useState('')
@@ -43,14 +41,14 @@ export default function ToneAddDialog({ open, onClose, time }: Props) {
 
   const handleAdd = (toneName: string, program: number, color: string = '#1db954') => {
     guard('add_trigger', () => {
-      const trigger: Trigger = {
-        id: `t-${Date.now()}-${Math.random().toString(36).slice(2, 6)}`,
+      addTrigger({
+        id: crypto.randomUUID(),
         time,
-        toneName,
         program,
+        toneName,
         color,
-      }
-      addTrigger(trigger)
+      })
+      onClose()
     })
   }
 
@@ -59,20 +57,20 @@ export default function ToneAddDialog({ open, onClose, time }: Props) {
     const pc = parseInt(customPC, 10)
     if (isNaN(pc) || pc < 0 || pc > 127) return
     guard('add_trigger', () => {
-      const trigger: Trigger = {
-        id: `t-${Date.now()}-${Math.random().toString(36).slice(2, 6)}`,
+      addTrigger({
+        id: crypto.randomUUID(),
         time,
         toneName: customName.trim(),
         program: pc,
         color: '#1db954',
-      }
-      addTrigger(trigger)
+      })
+      onClose()
     })
     setCustomName('')
     setCustomPC('')
   }
 
-  // Phase 2: Merge hardcoded presets with mapping tones
+  // Merge hardcoded presets with mapping tones
   const displayTones = mappingTones.length > 0
     ? mappingTones.map((t) => ({
         name: t.name,
@@ -95,7 +93,7 @@ export default function ToneAddDialog({ open, onClose, time }: Props) {
           </button>
         </div>
 
-        {/* Tone grid — 2 columns */}
+        {/* Tone grid */}
         <div className="grid grid-cols-2 gap-2 mb-6">
           {displayTones.map((p) => (
             <button

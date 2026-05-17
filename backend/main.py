@@ -70,6 +70,7 @@ def _on_scheduler_trigger(trigger):
         print(f"[Scheduler] MIDI send error: {e}")
 
 scheduler = TimelineScheduler(on_trigger=_on_scheduler_trigger)
+_playback_task: asyncio.Task | None = None
 
 
 # ----- WebSocket connection manager -----
@@ -86,14 +87,15 @@ class ConnectionManager:
             self.active_connections.remove(ws)
 
     async def broadcast(self, message: dict) -> None:
-        dead: list[WebSocket] = []
-        for ws in self.active_connections:
-            try:
-                await ws.send_json(message)
-            except Exception:
-                dead.append(ws)
-        for ws in dead:
-            self.disconnect(ws)
+        if not self.active_connections:
+            return
+        results = await asyncio.gather(
+            *[ws.send_json(message) for ws in self.active_connections],
+            return_exceptions=True
+        )
+        for ws, result in zip(list(self.active_connections), results):
+            if isinstance(result, Exception):
+                self.disconnect(ws)
 
 
 manager = ConnectionManager()
@@ -133,8 +135,9 @@ async def upload_audio(file: UploadFile = File(...)):
 
 @app.get("/api/audio/waveform")
 async def get_waveform(path: str = Query(...), num_peaks: int = Query(800, ge=100, le=4000)):
-    if not Path(path).exists():
-        return JSONResponse({"error": "File not found"}, status_code=404)
+    resolved = Path(path).resolve()
+    if not str(resolved).startswith(str(UPLOAD_DIR.resolve())):
+        return JSONResponse({"error": "Access denied"}, status_code=403)
 
     peaks = audio_engine.get_waveform_peaks(path, num_peaks)
     return {"peaks": peaks, "num_peaks": len(peaks)}
@@ -213,11 +216,10 @@ async def midi_install(req: InstallXmlRequest):
 async def midi_test(req: MidiTestRequest):
     """Send a test MIDI Program Change message."""
     try:
-        midi_engine.send_program_change(
+        midi_engine.send_manual_pc(
             req.program,
+            bank=req.bank_msb,
             channel=req.channel,
-            bank_msb=req.bank_msb,
-            bank_lsb=req.bank_lsb,
         )
         return {"success": True, "message": f"Sent PC {req.program} on ch {req.channel}"}
     except Exception as e:
@@ -318,8 +320,10 @@ async def handle_ws_message(ws: WebSocket, msg: dict) -> None:
     msg_type = msg.get("type", "")
 
     if msg_type == "play":
+        global _playback_task
         audio_engine.play()
-        asyncio.create_task(playback_loop(ws))
+        if _playback_task is None or _playback_task.done():
+            _playback_task = asyncio.create_task(playback_loop(ws))
 
     elif msg_type == "pause":
         audio_engine.pause()

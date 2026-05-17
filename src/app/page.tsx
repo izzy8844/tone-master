@@ -42,6 +42,36 @@ export default function Home() {
   const [addDialogOpen, setAddDialogOpen] = useState(false)
   const [addDialogTime, setAddDialogTime] = useState(0)
 
+  // Fix 1: Initialize currentProject on mount
+  useEffect(() => {
+    if (!useMapperStore.getState().currentProject) {
+      useMapperStore.getState().setCurrentProject({
+        id: 'local',
+        name: 'Untitled Project',
+        triggers: [],
+        createdAt: new Date().toISOString(),
+        updatedAt: new Date().toISOString(),
+      })
+    }
+  }, [])
+
+  // Fix 10: Populate allMappings from backend
+  useEffect(() => {
+    fetch('/api/midi/mappings')
+      .then(r => r.ok ? r.json() : [])
+      .then(data => {
+        useMapperStore.getState().setAllMappings(
+          data.map((m: { filename: string; plugin_name: string; tone_count: number; path: string }) => ({
+            filename: m.filename,
+            pluginName: m.plugin_name,
+            toneCount: m.tone_count,
+            path: m.path,
+          }))
+        )
+      })
+      .catch(() => {})
+  }, [])
+
   // Sync triggers to WebSocket when they change
   useEffect(() => {
     if (triggers.length > 0) {

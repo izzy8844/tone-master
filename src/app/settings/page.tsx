@@ -57,11 +57,10 @@ export default function SettingsPage() {
                 const port = e.target.value
                 setMidiPort(port || null)
                 if (port) {
-                  fetch('/api/midi/connect', {
-                    method: 'POST',
-                    headers: { 'Content-Type': 'application/json' },
-                    body: JSON.stringify({ port_name: port })
-                  }).catch(() => {})
+                  const portIndex = availablePorts.indexOf(port)
+                  if (portIndex >= 0) {
+                    fetch(`/api/midi/connect?port_index=${portIndex}`, { method: 'POST' }).catch(() => {})
+                  }
                 }
               }}
               className="w-full bg-zinc-800 text-white rounded-lg px-3 py-2 border border-zinc-700"
