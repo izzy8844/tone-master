@@ -1,15 +1,15 @@
-'use client'
+﻿'use client'
 
 import { useEffect, useState, useCallback } from 'react'
 import { RefreshCw, AlertTriangle, CheckCircle2, Wifi, Play } from 'lucide-react'
-import { useMapperStore } from '@/stores/mapperStore'
+import { usePlaybackStore } from '@/stores/playbackStore'
 import { isMidiSupported, initMidi, getOutputPorts, selectPort, sendProgramChange, onPortChange, detectOS, type MidiPortInfo } from '@/lib/midi'
 
 type SetupStep = 'checking' | 'no-support' | 'no-ports' | 'select-port' | 'ready'
 
 export default function MidiSetup() {
-  const midiPort = useMapperStore((s) => s.midiPort)
-  const setMidiPort = useMapperStore((s) => s.setMidiPort)
+  const midiPort = usePlaybackStore((s) => s.currentMidiPort)
+  const setMidiPort = usePlaybackStore((s) => s.setCurrentMidiPort)
   const [step, setStep] = useState<SetupStep>('checking')
   const [ports, setPorts] = useState<MidiPortInfo[]>([])
   const [os, setOs] = useState<string>('unknown')

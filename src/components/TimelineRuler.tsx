@@ -1,35 +1,19 @@
 'use client'
-import { useMapperStore } from '@/stores/mapperStore'
+import { usePlaybackStore } from '@/stores/playbackStore'
 
 export function TimelineRuler() {
-  const { durationMs } = useMapperStore()
+  const duration = usePlaybackStore((s) => s.duration)
+  if (duration === 0) return null
 
-  if (durationMs === 0) return null
-
-  // Generate time markers
   const markers: { time: string; pct: number }[] = []
-  const intervalMs = durationMs > 120000 ? 30000 : durationMs > 60000 ? 15000 : 10000
-
-  for (let ms = 0; ms <= durationMs; ms += intervalMs) {
-    const s = Math.floor(ms / 1000)
-    const m = Math.floor(s / 60)
-    markers.push({
-      time: `${m}:${String(s % 60).padStart(2, '0')}`,
-      pct: (ms / durationMs) * 100
-    })
+  const intervalS = duration > 120 ? 30 : duration > 60 ? 15 : 10
+  for (let sec = 0; sec <= duration; sec += intervalS) {
+    const m = Math.floor(sec / 60); const s = sec % 60
+    markers.push({ time: `${m}:${String(s).padStart(2, '0')}`, pct: (sec / duration) * 100 })
   }
-
   return (
     <div className="relative w-full h-5 text-[10px] text-zinc-500 font-mono select-none">
-      {markers.map((m, i) => (
-        <span
-          key={i}
-          className="absolute top-0 -translate-x-1/2"
-          style={{ left: `${m.pct}%` }}
-        >
-          {m.time}
-        </span>
-      ))}
+      {markers.map((m, i) => <span key={i} className="absolute top-0 -translate-x-1/2" style={{ left: `${m.pct}%` }}>{m.time}</span>)}
     </div>
   )
 }

@@ -1,4 +1,4 @@
-'use client'
+﻿'use client'
 
 import { useRef, useEffect, useCallback } from 'react'
 import { usePlaybackStore } from '@/stores/playbackStore'
@@ -56,7 +56,7 @@ export function Waveform({ waveformData, onTriggerDrag, onAddTrigger }: Waveform
         ctx.setLineDash([])
         ctx.fillStyle = isActive ? '#22c55e' : '#a1a1aa'
         ctx.font = '10px Inter, sans-serif'
-        ctx.fillText(t.toneName, x + 4, 12)
+        ctx.fillText(t.name, x + 4, 12)
       })
 
       const playX = (currentPositionMs / duration) * width
@@ -98,7 +98,7 @@ export function Waveform({ waveformData, onTriggerDrag, onAddTrigger }: Waveform
     const onMove = (me: MouseEvent) => {
       const mx = me.clientX - rect.left
       const newTime = Math.max(0, Math.min(duration, (mx / rect.width) * duration))
-      onTriggerDrag(nearest.id, newTime)
+      onTriggerDrag(String(nearest.id), newTime)
     }
     const onUp = () => {
       document.removeEventListener('mousemove', onMove)

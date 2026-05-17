@@ -2,87 +2,80 @@ import { useEffect, useRef, useCallback } from 'react'
 import { usePlaybackStore } from '@/stores/playbackStore'
 
 const WS_URL = process.env.NEXT_PUBLIC_WS_URL || 'ws://localhost:8765/ws'
-
-let globalWs: WebSocket | null = null
-let refCount = 0
+const RECONNECT_DELAY = 3000
 
 export function useWebSocket() {
   const wsRef = useRef<WebSocket | null>(null)
   const mountedRef = useRef(true)
+  const reconnectRef = useRef<ReturnType<typeof setTimeout> | null>(null)
 
   const connect = useCallback(() => {
-    if (globalWs?.readyState === WebSocket.OPEN) {
-      wsRef.current = globalWs
-      return
-    }
-
+    if (!mountedRef.current) return
     usePlaybackStore.getState().setWsStatus('connecting')
-    globalWs = new WebSocket(WS_URL)
-    wsRef.current = globalWs
+    try {
+      const ws = new WebSocket(WS_URL)
+      wsRef.current = ws
 
-    globalWs.onopen = () => {
-      (window as any)._tm_ws = globalWs
-      usePlaybackStore.getState().setWsConnected(true)
-      usePlaybackStore.getState().setWsStatus('connected')
-    }
-
-    globalWs.onclose = () => {
-      if ((window as any)._tm_ws === globalWs) (window as any)._tm_ws = null
-      usePlaybackStore.getState().setWsConnected(false)
-      usePlaybackStore.getState().setWsStatus('disconnected')
-      if (mountedRef.current) setTimeout(connect, 3000)
-    }
-
-    globalWs.onmessage = (event) => {
-      const msg = JSON.parse(event.data)
-      const pb = usePlaybackStore.getState()
-      switch (msg.type) {
-        case 'playhead_tick':
-          pb.setCurrentTick(msg.playhead_ms / 1000)
-          break
-        case 'audio_loaded':
-          pb.setDuration((msg.duration_ms || 0) / 1000)
-          break
-        case 'midi_trigger':
-          if (msg.trigger) {
-            pb.setLastMidiEvent({ pc: msg.trigger.pc, name: msg.trigger.name || '' })
-          }
-          if (msg.trigger_index !== undefined) pb.setActiveTriggerIndex(msg.trigger_index)
-          break
-        case 'playback_state':
-          pb.setIsPlaying(msg.playing)
-          if (!msg.playing) pb.setActiveTriggerIndex(-1)
-          break
-        case 'error':
-          console.error('[WS Error]', msg.message)
-          break
+      ws.onopen = () => {
+        if (!mountedRef.current) return
+        usePlaybackStore.getState().setWsConnected(true)
+        usePlaybackStore.getState().setWsStatus('connected')
       }
+
+      ws.onmessage = (event) => {
+        if (!mountedRef.current) return
+        try {
+          const msg = JSON.parse(event.data)
+          const pb = usePlaybackStore.getState()
+          switch (msg.type) {
+            case 'playhead_tick': {
+              const ms = msg.playhead_ms ?? msg.tick ?? 0
+              pb.setCurrentTick(ms / 1000)
+              break
+            }
+            case 'audio_loaded': {
+              const dMs = msg.duration_ms ?? msg.duration ?? 0
+              pb.setDuration(dMs / 1000)
+              break
+            }
+            case 'midi_trigger':
+              pb.setLastMidiEvent(msg)
+              if (msg.trigger_index !== undefined) pb.setActiveTriggerIndex(msg.trigger_index)
+              break
+            case 'playback_state':
+              pb.setIsPlaying(msg.playing ?? false)
+              break
+          }
+        } catch {}
+      }
+
+      ws.onerror = () => { usePlaybackStore.getState().setWsStatus('error') }
+
+      ws.onclose = () => {
+        if (!mountedRef.current) return
+        usePlaybackStore.getState().setWsConnected(false)
+        usePlaybackStore.getState().setWsStatus('disconnected')
+        reconnectRef.current = setTimeout(connect, RECONNECT_DELAY)
+      }
+    } catch {
+      usePlaybackStore.getState().setWsStatus('error')
+      reconnectRef.current = setTimeout(connect, RECONNECT_DELAY)
     }
   }, [])
 
   const send = useCallback((data: Record<string, unknown>) => {
-    if (globalWs?.readyState === WebSocket.OPEN) {
-      globalWs.send(JSON.stringify(data))
-    }
+    if (wsRef.current?.readyState === WebSocket.OPEN) wsRef.current.send(JSON.stringify(data))
   }, [])
-
-  const sendCommand = useCallback((command: string, positionMs?: number) => {
-    send({ type: 'playback_command', command, position_ms: positionMs })
-  }, [send])
 
   useEffect(() => {
     mountedRef.current = true
-    refCount++
     connect()
     return () => {
       mountedRef.current = false
-      refCount--
-      if (refCount <= 0) {
-        globalWs?.close()
-        globalWs = null
-      }
+      if (reconnectRef.current) clearTimeout(reconnectRef.current)
+      if (wsRef.current) { wsRef.current.onclose = null; wsRef.current.close() }
     }
   }, [connect])
 
-  return { send, sendCommand }
+  return { send }
 }

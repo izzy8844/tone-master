@@ -1,8 +1,8 @@
-'use client'
+﻿'use client'
 
 import { useRef, useCallback } from 'react'
 import { useAuthStore } from '@/store/authStore'
-import { useMapperStore } from '@/stores/mapperStore'
+import { useProjectStore } from '@/stores/projectStore'
 import type { GateAction, GateModalPayload } from '@/lib/types'
 
 interface Rule {
@@ -42,8 +42,8 @@ const RULES: Record<GateAction, Rule> = {
 export function useGatekeeper() {
   const tier = useAuthStore((s) => s.tier)
   const openGate = useAuthStore((s) => s.openGate)
-  const triggers = useMapperStore((s) => s.currentProject?.triggers)
-  const triggerCount = useMapperStore((s) => s.currentProject?.triggers?.length ?? 0)
+  const triggers = useProjectStore((s) => s.currentProject?.triggers)
+  const triggerCount = useProjectStore((s) => s.currentProject?.triggers?.length ?? 0)
 
   const guard = useCallback(
     (action: GateAction, callback: () => void) => {
