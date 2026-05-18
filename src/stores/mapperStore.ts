@@ -55,12 +55,16 @@ export const useMapperStore = create<MapperState>((set, get) => ({
 }))
 
 if (typeof window !== 'undefined') {
-  const sp = localStorage.getItem('tonemaster_selected_plugin')
-  const am = localStorage.getItem('tonemaster_active_mapping')
-  if (sp) useMapperStore.setState({ selectedPlugin: sp })
-  if (am) useMapperStore.setState({ activeMappingFile: am })
+  try {
+    const sp = localStorage.getItem('tonemaster_selected_plugin')
+    const am = localStorage.getItem('tonemaster_active_mapping')
+    if (sp) useMapperStore.setState({ selectedPlugin: sp })
+    if (am) useMapperStore.setState({ activeMappingFile: am })
+  } catch {}
   useMapperStore.subscribe((s) => {
-    if (s.selectedPlugin) localStorage.setItem('tonemaster_selected_plugin', s.selectedPlugin)
-    if (s.activeMappingFile) localStorage.setItem('tonemaster_active_mapping', s.activeMappingFile)
+    try {
+      if (s.selectedPlugin) localStorage.setItem('tonemaster_selected_plugin', s.selectedPlugin)
+      if (s.activeMappingFile) localStorage.setItem('tonemaster_active_mapping', s.activeMappingFile)
+    } catch {}
   })
 }

@@ -47,13 +47,15 @@ export function hydratePlaybackStore() {
   if (Object.keys(s).length) usePlaybackStore.setState(s as any)
 }
 
+// Track persistent fields only to avoid debounce on isPlaying/duration/wsConnected changes
+let _persistentSnapshot = { zoom: 1, currentTick: 0, loopA: null as number | null, loopB: null as number | null, currentMidiPort: null as string | null }
 let saveTimer: ReturnType<typeof setTimeout> | null = null
 if (typeof window !== 'undefined') {
   usePlaybackStore.subscribe((state) => {
+    const ps = { zoom: state.zoom, currentTick: state.currentTick, loopA: state.loopA, loopB: state.loopB, currentMidiPort: state.currentMidiPort }
+    if (ps.zoom === _persistentSnapshot.zoom && ps.currentTick === _persistentSnapshot.currentTick && ps.loopA === _persistentSnapshot.loopA && ps.loopB === _persistentSnapshot.loopB && ps.currentMidiPort === _persistentSnapshot.currentMidiPort) return
+    _persistentSnapshot = ps
     if (saveTimer) clearTimeout(saveTimer)
-    saveTimer = setTimeout(() => writeSaved({
-      zoom: state.zoom, currentTick: state.currentTick,
-      loopA: state.loopA, loopB: state.loopB, currentMidiPort: state.currentMidiPort,
-    }), 500)
+    saveTimer = setTimeout(() => writeSaved(ps), 500)
   })
 }

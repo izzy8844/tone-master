@@ -8,6 +8,7 @@ import { DndContext, closestCenter, PointerSensor, useSensor, useSensors } from 
 import { SortableContext, useSortable, verticalListSortingStrategy } from '@dnd-kit/sortable'
 import { CSS } from '@dnd-kit/utilities'
 import type { DragEndEvent } from '@dnd-kit/core'
+import { API_BASE } from '@/lib/api'
 
 function SortableItem({ name, idx, onTest, onRemove }: { name: string; idx: number; onTest: () => void; onRemove: () => void }) {
   const { attributes, listeners, setNodeRef, transform, transition } = useSortable({ id: name })
@@ -34,21 +35,33 @@ export default function SettingsPage() {
 
   const [showXmlPreview, setShowXmlPreview] = useState(false)
   const [installMsg, setInstallMsg] = useState('')
+  const [portsError, setPortsError] = useState(false)
+  const [pluginsError, setPluginsError] = useState(false)
 
   const sensors = useSensors(useSensor(PointerSensor, { activationConstraint: { distance: 5 } }))
 
   useEffect(() => {
-    fetch('/api/midi/ports').then(r => r.json()).then(d => setMidiPorts(d.ports?.map((p: any) => p.name) || [])).catch(() => {})
+    fetch(`${API_BASE}/api/midi/ports`)
+      .then(r => { if (!r.ok) throw new Error(); return r.json() })
+      .then(d => { setMidiPorts(d.ports?.map((p: any) => p.name) || []); setPortsError(false) })
+      .catch(() => setPortsError(true))
   }, [setMidiPorts])
 
   useEffect(() => {
-    fetch('/api/plugins').then(r => r.json()).then(d => setPlugins(d.map((p: any) => p.name))).catch(() => {})
+    fetch(`${API_BASE}/api/plugins`)
+      .then(r => { if (!r.ok) throw new Error(); return r.json() })
+      .then(d => { setPlugins(d.map((p: any) => p.name)); setPluginsError(false) })
+      .catch(() => setPluginsError(true))
   }, [setPlugins])
 
   useEffect(() => {
     if (!selectedPlugin) { setPresets([]); return }
     setLoading(true)
-    fetch(`/api/presets?plugin=${encodeURIComponent(selectedPlugin)}`).then(r => r.json()).then(d => setPresets(d)).catch(() => {}).finally(() => setLoading(false))
+    fetch(`${API_BASE}/api/presets?plugin=${encodeURIComponent(selectedPlugin)}`)
+      .then(r => { if (!r.ok) throw new Error(); return r.json() })
+      .then(d => setPresets(d))
+      .catch(() => {})
+      .finally(() => setLoading(false))
   }, [selectedPlugin, setPresets, setLoading])
 
   const filteredPresets = presets.filter(p => !searchQuery || p.name.toLowerCase().includes(searchQuery.toLowerCase()))
@@ -65,18 +78,25 @@ export default function SettingsPage() {
     const mappings = getMappings()
     if (!mappings.length) return
     try {
-      const res = await fetch('/api/midi/automap', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ plugin_name: selectedPlugin, preset_names: mappings.map(m => m.name), start_pc: 0 }) })
+      const res = await fetch(`${API_BASE}/api/midi/automap`, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ plugin_name: selectedPlugin, preset_names: mappings.map(m => m.name), start_pc: 0 }) })
+      if (!res.ok) throw new Error(`Automap: ${res.status}`)
       const data = await res.json()
       setGeneratedXml(data.xml_content, '')
-      await fetch('/api/midi/install', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ plugin_name: selectedPlugin, xml_content: data.xml_content, filename: data.filename }) })
-      setInstallMsg('Installed!'); setShowXmlPreview(true)
-    } catch { setInstallMsg('Failed') }
+      const installRes = await fetch(`${API_BASE}/api/midi/install`, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ plugin_name: selectedPlugin, xml_content: data.xml_content, filename: data.filename }) })
+      if (!installRes.ok) throw new Error(`Install: ${installRes.status}`)
+      setInstallMsg('✓ Installed!'); setShowXmlPreview(true)
+    } catch (e: any) { setInstallMsg(`✗ ${e.message || 'Failed'}`) }
   }
 
-  const handleGenerateXml = () => {
+  const handleGenerateXml = async () => {
     const mappings = getMappings()
     if (!mappings.length) return
-    fetch('/api/midi/generate', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ plugin_name: selectedPlugin, mappings: mappings.map(m => ({ pc: m.pc, name: m.name, uid: m.uid })) }) }).then(r => r.json()).then(d => { setGeneratedXml(d.xml_content, ''); setShowXmlPreview(true) })
+    try {
+      const res = await fetch(`${API_BASE}/api/midi/generate`, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ plugin_name: selectedPlugin, mappings: mappings.map(m => ({ pc: m.pc, name: m.name, uid: m.uid })) }) })
+      if (!res.ok) throw new Error(`Generate: ${res.status}`)
+      const d = await res.json()
+      setGeneratedXml(d.xml_content, ''); setShowXmlPreview(true)
+    } catch { setInstallMsg('✗ Failed to generate XML') }
   }
 
   return (
@@ -122,7 +142,11 @@ export default function SettingsPage() {
                       key={name}
                       name={name}
                       idx={idx}
-                      onTest={async () => { await fetch('/api/midi/test', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ port_name: currentMidiPort, program: idx, channel: 0 }) }) }}
+                      onTest={async () => {
+                        try {
+                          await fetch(`${API_BASE}/api/midi/test`, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ port_name: currentMidiPort, program: idx, channel: 0 }) })
+                        } catch { setInstallMsg('✗ Test failed') }
+                      }}
                       onRemove={() => togglePreset(name)}
                     />
                   ))

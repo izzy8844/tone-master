@@ -1,4 +1,5 @@
 import { create } from 'zustand'
+import { wsSend } from '@/lib/ws'
 
 export const PRESET_TONES = [
   { name: 'Clean', pc: 0 }, { name: 'Crunch', pc: 1 }, { name: 'Lead', pc: 2 },
@@ -73,21 +74,46 @@ export const useProjectStore = create<ProjectState>((set) => ({
   removeTrigger: (id) => set((s) => ({ triggers: s.triggers.filter(t => t.id !== id) })),
   updateTrigger: (id, u) => set((s) => ({ triggers: s.triggers.map(t => t.id === id ? { ...t, ...u } : t) })),
   clearTriggers: () => set({ triggers: [] }),
-  loadProject: (p) => set({ currentProject: p, projectName: p.name, triggers: p.triggers || [], audioFile: p.audioFile || null, isDemo: false }),
+  loadProject: (p) => set({ waveformData: null, currentProject: p, projectName: p.name, triggers: p.triggers || [], audioFile: p.audioFile || null, isDemo: false }),
   loadDemoProject: () => set({ currentProject: null, projectName: 'Demo Project', triggers: DEMO_TRIGGERS, audioFile: null, waveformData: null, isDemo: true }),
   newProject: () => { colorIdx = 0; set({ currentProject: null, projectName: 'Untitled Project', triggers: [], audioFile: null, waveformData: null, isDemo: false }) },
 }))
 
 export function hydrateProjectStore() {
-  const s = saved() as any
-  if (s.triggers?.length) { colorIdx = s.triggers.length }
-  if (s.projectName || s.triggers?.length) {
-    useProjectStore.setState({ triggers: s.triggers ?? [], audioFile: s.audioFile ?? null, projectName: s.projectName ?? 'Untitled Project', isDemo: false })
-  }
+  try {
+    const s = saved() as any
+    if (s.triggers?.length) { colorIdx = s.triggers.length }
+    if (s.projectName || s.triggers?.length) {
+      useProjectStore.setState({ triggers: s.triggers ?? [], audioFile: s.audioFile ?? null, projectName: s.projectName ?? 'Untitled Project', isDemo: false })
+    }
+  } catch {}
 }
 
-let st: ReturnType<typeof setTimeout> | null = null
+// ── Sync triggers to backend TimelineScheduler via WebSocket ──
+let _prevTriggersLen = -1
+let _isHydrating = true
+
+export function setHydrating(v: boolean) { _isHydrating = v }
+
 if (typeof window !== 'undefined') {
+  useProjectStore.subscribe((state) => {
+    const triggers = state.triggers
+    if (triggers.length === _prevTriggersLen) return
+    _prevTriggersLen = triggers.length
+    if (_isHydrating) return
+    wsSend({
+      type: 'update_triggers',
+      triggers: triggers.map(t => ({
+        id: String(t.id),
+        time_ms: Math.round(t.time * 1000),
+        program: t.pc,
+        name: t.name,
+      })),
+    })
+  })
+
+  // localStorage debounced save
+  let st: ReturnType<typeof setTimeout> | null = null
   useProjectStore.subscribe((state) => {
     if (st) clearTimeout(st)
     st = setTimeout(() => save({ projectName: state.projectName, triggers: state.triggers, audioFile: state.audioFile }), 500)

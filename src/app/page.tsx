@@ -20,6 +20,10 @@ import ToneAddDialog from '@/components/ToneAddDialog'
 import ExportButton from '@/components/ExportButton'
 import UserMenu from '@/components/UserMenu'
 import { toast } from '@/components/Toast'
+import { API_BASE } from '@/lib/api'
+
+const ALLOWED_EXTS = /\.(mp3|wav|flac|ogg|m4a|aac|wma)$/i
+const MAX_FILE_SIZE = 100 * 1024 * 1024 // 100MB
 
 export default function Home() {
   const projectName = useProjectStore((s) => s.projectName)
@@ -46,11 +50,16 @@ export default function Home() {
     }
   }, [])
 
+  // Sync editName with projectName
+  useEffect(() => {
+    if (!isEditingName) setEditName(projectName)
+  }, [projectName, isEditingName])
+
   // Fetch waveform when audio loads  
   useEffect(() => {
     const audioFile = useProjectStore.getState().audioFile
     if (!audioFile) { setWaveformData(undefined); return }
-    fetch(`/api/audio/waveform?path=${encodeURIComponent(audioFile)}&num_peaks=800`)
+    fetch(`${API_BASE}/api/audio/waveform?path=${encodeURIComponent(audioFile)}&num_peaks=800`)
       .then(r => r.ok ? r.json() : null).then(d => { if (d?.peaks) setWaveformData(d.peaks) }).catch(() => {})
   }, [useProjectStore((s) => s.audioFile)])
 
@@ -79,21 +88,41 @@ export default function Home() {
   const handleFileChange = async (e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0]
     if (!file) return
+    // Validate size
+    if (file.size > MAX_FILE_SIZE) {
+      toast.error('File too large (max 100MB)')
+      e.target.value = ''
+      return
+    }
+    // Validate format
+    if (!ALLOWED_EXTS.test(file.name)) {
+      toast.error('Unsupported format (.mp3, .wav, .flac, .ogg, .m4a, .aac, .wma)')
+      e.target.value = ''
+      return
+    }
     const formData = new FormData(); formData.append('file', file)
     try {
-      const res = await fetch('/api/audio/upload', { method: 'POST', body: formData })
+      const res = await fetch(`${API_BASE}/api/audio/upload`, { method: 'POST', body: formData })
+      if (!res.ok) throw new Error(`Upload failed: ${res.status}`)
       const data = await res.json()
       if (data.success && data.path) {
         useProjectStore.getState().setAudioFile(data.path)
         send({ type: 'load_audio', path: data.path })
       }
     } catch {
-      const audioCtx = new AudioContext()
-      const arrayBuffer = await file.arrayBuffer()
-      const audioBuffer = await audioCtx.decodeAudioData(arrayBuffer)
-      useProjectStore.getState().setAudioFile(file.name)
-      usePlaybackStore.getState().setDuration(audioBuffer.duration)
-      audioCtx.close()
+      let audioCtx: AudioContext | null = null
+      try {
+        audioCtx = new AudioContext()
+        if (audioCtx.state === 'suspended') await audioCtx.resume()
+        const arrayBuffer = await file.arrayBuffer()
+        const audioBuffer = await audioCtx.decodeAudioData(arrayBuffer)
+        useProjectStore.getState().setAudioFile(file.name)
+        usePlaybackStore.getState().setDuration(audioBuffer.duration)
+      } catch {
+        toast.error('Failed to load audio file')
+      } finally {
+        audioCtx?.close()
+      }
     }
     e.target.value = ''
   }
