@@ -1,4 +1,4 @@
-﻿"""
+"""
 ToneMaster AI Backend — Real audio engine + WebSocket + Project persistence.
 """
 import asyncio
@@ -25,7 +25,7 @@ from app.services.project_manager import (
 )
 from app.services.timeline_scheduler import TimelineScheduler, TriggerPoint
 from app.services.preset_scanner import scan_plugins, scan_presets
-from app.services.midi_xml_gen import generate_xml, save_mapping, list_mappings, get_mapping_tones, delete_mapping, auto_map
+from app.services.midi_xml_gen import generate_xml, save_mapping, list_mappings, get_mapping_tones, delete_mapping, auto_map, auto_map_with_uids, auto_map_and_install
 from app.services.midi_learn_guide import start_session, get_current_step, execute_step, get_results
 from app.models import AutoMapRequest, GenerateXmlRequest, InstallXmlRequest, MidiTestRequest
 
@@ -64,7 +64,7 @@ def _playback_loop():
                 for t in fired:
                     try:
                         from app.services.midi_controller import send_pc
-                        send_pc(_midi_port_name or "", t.program)
+                        send_pc(_midi_port_name or "", t.program, t.channel)
                     except Exception:
                         pass
 
@@ -104,12 +104,18 @@ def _ensure_playback_thread():
 async def lifespan(app: FastAPI):
     global _main_loop
     _main_loop = asyncio.get_running_loop()
+
+    # Create virtual MIDI port immediately so plugins can see it
+    from app.services.midi_controller import init_virtual_port, cleanup as midi_cleanup
+    init_virtual_port()
+
     ws_manager.set_playhead_provider(lambda: audio.playhead_ms)
     playhead_task = asyncio.create_task(ws_manager.broadcast_playhead())
     yield
     playhead_task.cancel()
     _stop_event.set()
     audio.stop()
+    midi_cleanup()
     await ws_manager.close_all()
 
 
@@ -218,8 +224,17 @@ async def list_plugins():
 
 
 @app.get("/api/presets")
-async def list_presets(plugin: str = Query(...)):
-    return [p.model_dump() for p in scan_presets(plugin)]
+async def list_presets(plugin: str = Query(...), source: str = Query(None)):
+    presets = scan_presets(plugin)
+    if source:
+        source_map = {
+            'user': 'user',
+            'artists': 'artists',
+            'factory': 'factory',
+        }
+        target = source_map.get(source.lower(), source.lower())
+        presets = [p for p in presets if p.source.lower().startswith(target)]
+    return [p.model_dump() for p in presets]
 
 
 @app.get("/api/midi/ports")
@@ -254,9 +269,63 @@ async def midi_generate(req: GenerateXmlRequest):
 
 @app.post("/api/midi/automap")
 async def midi_automap(req: AutoMapRequest):
-    mappings = auto_map(req.preset_names, req.start_pc)
-    xml_content, filename = generate_xml(req.plugin_name, mappings)
-    return {"mappings": [m.model_dump() for m in mappings], "xml_content": xml_content, "filename": filename}
+    """One-click: scan presets → compute hashCode64 UIDs → generate XML → install to plugin dir."""
+    try:
+        result = auto_map_and_install(req.plugin_name, req.preset_names, filename="ToneMaster.xml", channel=req.start_pc if hasattr(req, 'channel') else 0)
+        return result
+    except ValueError as e:
+        return JSONResponse({"error": str(e)}, status_code=400)
+    except Exception as e:
+        return JSONResponse({"error": str(e)}, status_code=500)
+
+
+@app.post("/api/init/auto-setup")
+async def init_auto_setup():
+    """
+    First-launch auto-setup: detect plugins, find user presets, auto-generate mapping.
+    Returns the plugin name, user presets, and mapping status.
+    """
+    try:
+        plugins = scan_plugins()
+        if not plugins:
+            return {"status": "no_plugins", "plugin": None, "user_presets": [], "mapping_installed": False}
+
+        # Pick the first plugin (or the one with most presets)
+        plugin = max(plugins, key=lambda p: p.preset_count)
+        plugin_name = plugin.name
+
+        # Check if user already has a mapping
+        existing = list_mappings(plugin_name)
+        if existing:
+            # Already has mapping — just return info
+            tones = get_mapping_tones(plugin_name, existing[0].filename)
+            return {
+                "status": "ready",
+                "plugin": plugin_name,
+                "mapping_file": existing[0].filename,
+                "user_presets": [t.model_dump() for t in tones],
+                "mapping_installed": True,
+            }
+
+        # No mapping yet — get user presets and auto-generate
+        user_presets = scan_presets(plugin_name, source="user")
+        if not user_presets:
+            # No user presets at all
+            return {"status": "no_user_presets", "plugin": plugin_name, "user_presets": [], "mapping_installed": False}
+
+        # Auto-map user presets and install
+        preset_names = [p.name for p in user_presets]
+        result = auto_map_and_install(plugin_name, preset_names, filename="ToneMaster.xml")
+        return {
+            "status": "auto_mapped",
+            "plugin": plugin_name,
+            "user_presets": [{"name": p.name, "pc": i, "uid": p.uid or ""} for i, p in enumerate(user_presets)],
+            "mapping_installed": True,
+            "mapping_file": "ToneMaster.xml",
+            "installed_path": result.get("installed_path", ""),
+        }
+    except Exception as e:
+        return JSONResponse({"error": str(e)}, status_code=500)
 
 
 @app.post("/api/midi/install")

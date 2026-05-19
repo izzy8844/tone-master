@@ -2,9 +2,9 @@
 
 import { useState, useEffect, useCallback, useRef } from 'react'
 import Link from 'next/link'
-import { Save, Cloud, CloudOff, FolderOpen, Settings, BookOpen, Pencil, Upload, Menu } from 'lucide-react'
-import { usePlaybackStore } from '@/stores/playbackStore'
-import { useProjectStore } from '@/stores/projectStore'
+import { Save, Cloud, CloudOff, FolderOpen, Settings, BookOpen, Pencil, Upload, Menu, Loader2 } from 'lucide-react'
+import { usePlaybackStore, hydratePlaybackStore } from '@/stores/playbackStore'
+import { useProjectStore, hydrateProjectStore } from '@/stores/projectStore'
 import { useAuthStore } from '@/store/authStore'
 import { useGatekeeper } from '@/hooks/useGatekeeper'
 import { useCloudSync } from '@/hooks/useCloudSync'
@@ -12,6 +12,7 @@ import { useWebSocket } from '@/hooks/useWebSocket'
 import { Transport } from '@/components/Transport'
 import { TimelineRuler } from '@/components/TimelineRuler'
 import { Waveform } from '@/components/Waveform'
+import { ToneSegments } from '@/components/ToneSegments'
 import { TriggerList } from '@/components/TriggerList'
 import { ProjectSidebar } from '@/components/ProjectSidebar'
 import { StatusBar } from '@/components/StatusBar'
@@ -20,10 +21,9 @@ import ToneAddDialog from '@/components/ToneAddDialog'
 import ExportButton from '@/components/ExportButton'
 import UserMenu from '@/components/UserMenu'
 import { toast } from '@/components/Toast'
-import { API_BASE } from '@/lib/api'
 
-const ALLOWED_EXTS = /\.(mp3|wav|flac|ogg|m4a|aac|wma)$/i
-const MAX_FILE_SIZE = 100 * 1024 * 1024 // 100MB
+import { API_BASE, initAutoSetup } from '@/lib/api'
+import { useMapperStore } from '@/stores/mapperStore'
 
 export default function Home() {
   const projectName = useProjectStore((s) => s.projectName)
@@ -40,28 +40,66 @@ export default function Home() {
   const [isEditingName, setIsEditingName] = useState(false)
   const [editName, setEditName] = useState(projectName)
   const [addDialogOpen, setAddDialogOpen] = useState(false)
+  const [uploading, setUploading] = useState(false)
+
+  // Sync editName when projectName changes externally (hydration, project switch)
+  useEffect(() => { if (!isEditingName) setEditName(projectName) }, [projectName, isEditingName])
   const [addDialogTime, setAddDialogTime] = useState(0)
   const [waveformData, setWaveformData] = useState<number[] | undefined>(undefined)
 
-  // Init project
+  // Hydrate stores and init project (synchronous — no race condition)
   useEffect(() => {
+    hydrateProjectStore()
+    hydratePlaybackStore()
     if (!useProjectStore.getState().currentProject && !useProjectStore.getState().isDemo) {
       useProjectStore.getState().newProject()
     }
   }, [])
 
-  // Sync editName with projectName
+  // Auto-setup on first launch: detect plugin, auto-map user presets
   useEffect(() => {
-    if (!isEditingName) setEditName(projectName)
-  }, [projectName, isEditingName])
+    const mapper = useMapperStore.getState()
+    // Skip if already initialized or already has a plugin selected
+    if (mapper.autoSetupDone || mapper.selectedPlugin) return
 
-  // Fetch waveform when audio loads  
+    mapper.setInitStatus('loading')
+    initAutoSetup()
+      .then((result) => {
+        const m = useMapperStore.getState()
+        m.setAutoSetupDone(true)
+        m.setInitStatus(result.status as typeof result.status)
+
+        if (result.plugin) {
+          m.setSelectedPlugin(result.plugin)
+        }
+        if (result.mapping_file) {
+          m.setActiveMappingFile(result.mapping_file)
+        }
+        if (result.user_presets && result.user_presets.length > 0) {
+          m.setUserPresets(result.user_presets)
+          // Also set as active mapping tones for the ToneAddDialog
+          m.setActiveMappingTones(result.user_presets.map(p => ({ name: p.name, pc: p.pc, uid: p.uid })))
+        }
+
+        if (result.status === 'auto_mapped') {
+          toast.success(`Auto-mapped ${result.user_presets.length} user presets for ${result.plugin}`)
+        }
+      })
+      .catch(() => {
+        useMapperStore.getState().setInitStatus('error')
+        useMapperStore.getState().setAutoSetupDone(true)
+      })
+  }, [])
+
+  // Fetch waveform when audio loads (only for server-hosted files with a path separator)
+  const audioFile = useProjectStore((s) => s.audioFile)
   useEffect(() => {
-    const audioFile = useProjectStore.getState().audioFile
     if (!audioFile) { setWaveformData(undefined); return }
+    // Skip waveform fetch for local-only filenames (fallback decode path stores bare names like "song.mp3")
+    if (!audioFile.includes('/')) { setWaveformData(undefined); return }
     fetch(`${API_BASE}/api/audio/waveform?path=${encodeURIComponent(audioFile)}&num_peaks=800`)
       .then(r => r.ok ? r.json() : null).then(d => { if (d?.peaks) setWaveformData(d.peaks) }).catch(() => {})
-  }, [useProjectStore((s) => s.audioFile)])
+  }, [audioFile])
 
   const handleSave = () => {
     guard('save_project', () => {
@@ -88,28 +126,43 @@ export default function Home() {
   const handleFileChange = async (e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0]
     if (!file) return
-    // Validate size
-    if (file.size > MAX_FILE_SIZE) {
-      toast.error('File too large (max 100MB)')
+
+    // Stop playback before uploading new audio to avoid desync
+    if (usePlaybackStore.getState().isPlaying) {
+      send({ type: 'playback_command', command: 'stop' })
+      usePlaybackStore.getState().setIsPlaying(false)
+      usePlaybackStore.getState().setCurrentTick(0)
+    }
+
+    // Validate file size (max 100MB)
+    const MAX_SIZE = 100 * 1024 * 1024
+    if (file.size > MAX_SIZE) {
+      toast.error('File too large. Maximum size is 100 MB.')
       e.target.value = ''
       return
     }
-    // Validate format
-    if (!ALLOWED_EXTS.test(file.name)) {
-      toast.error('Unsupported format (.mp3, .wav, .flac, .ogg, .m4a, .aac, .wma)')
+
+    // Validate file type
+    const ALLOWED_EXT = /\.(mp3|wav|flac|ogg|m4a|aac|wma)$/i
+    if (!ALLOWED_EXT.test(file.name)) {
+      toast.error('Unsupported format. Use MP3, WAV, FLAC, OGG, or M4A.')
       e.target.value = ''
       return
     }
+
+    setUploading(true)
     const formData = new FormData(); formData.append('file', file)
     try {
       const res = await fetch(`${API_BASE}/api/audio/upload`, { method: 'POST', body: formData })
       if (!res.ok) throw new Error(`Upload failed: ${res.status}`)
       const data = await res.json()
-      if (data.success && data.path) {
+      if (data.path) {
         useProjectStore.getState().setAudioFile(data.path)
+        if (data.duration_sec) usePlaybackStore.getState().setDuration(data.duration_sec)
         send({ type: 'load_audio', path: data.path })
       }
     } catch {
+      // Fallback: decode locally
       let audioCtx: AudioContext | null = null
       try {
         audioCtx = new AudioContext()
@@ -123,6 +176,8 @@ export default function Home() {
       } finally {
         audioCtx?.close()
       }
+    } finally {
+      setUploading(false)
     }
     e.target.value = ''
   }
@@ -140,7 +195,7 @@ export default function Home() {
           {isEditingName ? (
             <input type="text" value={editName} onChange={e => setEditName(e.target.value)}
               onBlur={() => { setProjectName(editName || 'Untitled Project'); setIsEditingName(false) }}
-              onKeyDown={e => { if (e.key === 'Enter') { setProjectName(editName || 'Untitled Project'); setIsEditingName(false) } }}
+              onKeyDown={e => { if (e.key === 'Enter') { setProjectName(editName || 'Untitled Project'); setIsEditingName(false) } if (e.key === 'Escape') setIsEditingName(false) }}
               className="bg-zinc-800 border border-zinc-700 rounded-lg px-2 py-1 text-sm text-white focus:outline-none focus:border-green-500" autoFocus />
           ) : (
             <button onClick={() => { setEditName(projectName); setIsEditingName(true) }} className="flex items-center gap-2 group">
@@ -152,8 +207,9 @@ export default function Home() {
 
         <div className="flex items-center gap-3">
           <input ref={fileInputRef} type="file" accept=".mp3,.wav,.flac,.ogg,.m4a" className="hidden" onChange={handleFileChange} />
-          <button onClick={handleUpload} className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs text-zinc-400 hover:text-white hover:bg-zinc-800" title="Upload audio">
-            <Upload className="w-4 h-4" /><span>Upload</span>
+          <button onClick={handleUpload} disabled={uploading} className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs text-zinc-400 hover:text-white hover:bg-zinc-800 disabled:opacity-50 disabled:cursor-not-allowed" title="Upload audio" aria-label="Upload audio file">
+            {uploading ? <Loader2 className="w-4 h-4 animate-spin" /> : <Upload className="w-4 h-4" />}
+            <span>{uploading ? 'Uploading...' : 'Upload Backing Track'}</span>
           </button>
           <ToneMappingSelector />
           <button onClick={handleSave} className={`flex items-center gap-1.5 px-3 py-1.5 rounded-lg border border-zinc-700 text-zinc-400 hover:text-green-400 hover:border-green-500 text-xs ${syncStatus === 'syncing' ? 'animate-pulse' : ''}`}>
@@ -174,6 +230,7 @@ export default function Home() {
           <div className="flex-1 flex flex-col px-6 py-4 overflow-y-auto gap-4">
             <TimelineRuler />
             <Waveform waveformData={waveformData} onTriggerDrag={handleTriggerDrag} onAddTrigger={(timeMs) => handleAddTrigger(timeMs / 1000)} />
+            <ToneSegments onTriggerDrag={handleTriggerDrag} />
             <div className="flex items-center justify-between px-4 py-2 border-b border-zinc-800">
               <span className="text-xs text-zinc-500 uppercase tracking-wide">Triggers</span>
               <button onClick={() => handleAddTrigger(usePlaybackStore.getState().currentTick)}

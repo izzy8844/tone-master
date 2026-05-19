@@ -14,6 +14,7 @@ class TriggerPoint:
     time_ms: float
     program: int
     name: str
+    channel: int = 0
 
 
 class TimelineScheduler:
@@ -24,12 +25,14 @@ class TimelineScheduler:
 
     def load_triggers(self, triggers: list[dict]):
         """Load and sort triggers by time_ms."""
+        from ..config import MIDI_DEFAULT_CHANNEL
         self._triggers = sorted([
             TriggerPoint(
                 id=t.get("id", ""),
                 time_ms=t.get("time_ms", t.get("time", 0) * 1000),
                 program=t.get("pc_value", t.get("program", t.get("pc", 0))),
                 name=t.get("name", t.get("toneName", t.get("preset_name", ""))),
+                channel=t.get("channel", MIDI_DEFAULT_CHANNEL),
             )
             for t in triggers
         ], key=lambda x: x.time_ms)

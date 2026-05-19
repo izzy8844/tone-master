@@ -4,6 +4,8 @@ export interface PresetInfo { name: string; uid: string; uid_path: string; sourc
 export interface PresetMapping { name: string; uid: string; pc: number }
 export interface MappingTone { name: string; pc: number; uid: string }
 
+export type InitStatus = 'idle' | 'loading' | 'ready' | 'auto_mapped' | 'no_user_presets' | 'no_plugins' | 'error'
+
 interface MapperState {
   selectedPort: string; midiPorts: string[]; setSelectedPort: (p: string) => void; setMidiPorts: (p: string[]) => void
   selectedPlugin: string; plugins: string[]; setSelectedPlugin: (p: string) => void; setPlugins: (p: string[]) => void
@@ -16,6 +18,10 @@ interface MapperState {
   setGeneratedXml: (xml: string, path: string) => void; setInstalledPath: (p: string) => void; clearXml: () => void
   activeMappingFile: string; activeMappingTones: MappingTone[]
   setActiveMappingFile: (f: string) => void; setActiveMappingTones: (t: MappingTone[]) => void
+  // Init / auto-setup state
+  initStatus: InitStatus; setInitStatus: (s: InitStatus) => void
+  autoSetupDone: boolean; setAutoSetupDone: (d: boolean) => void
+  userPresets: Array<{ name: string; pc: number; uid: string }>; setUserPresets: (p: Array<{ name: string; pc: number; uid: string }>) => void
 }
 
 export const useMapperStore = create<MapperState>((set, get) => ({
@@ -52,6 +58,10 @@ export const useMapperStore = create<MapperState>((set, get) => ({
   activeMappingFile: '', activeMappingTones: [],
   setActiveMappingFile: (f) => set({ activeMappingFile: f }),
   setActiveMappingTones: (t) => set({ activeMappingTones: t }),
+  // Init / auto-setup
+  initStatus: 'idle', setInitStatus: (s) => set({ initStatus: s }),
+  autoSetupDone: false, setAutoSetupDone: (d) => set({ autoSetupDone: d }),
+  userPresets: [], setUserPresets: (p) => set({ userPresets: p }),
 }))
 
 if (typeof window !== 'undefined') {
@@ -60,11 +70,11 @@ if (typeof window !== 'undefined') {
     const am = localStorage.getItem('tonemaster_active_mapping')
     if (sp) useMapperStore.setState({ selectedPlugin: sp })
     if (am) useMapperStore.setState({ activeMappingFile: am })
-  } catch {}
+  } catch { /* localStorage may be unavailable in private browsing */ }
   useMapperStore.subscribe((s) => {
     try {
       if (s.selectedPlugin) localStorage.setItem('tonemaster_selected_plugin', s.selectedPlugin)
       if (s.activeMappingFile) localStorage.setItem('tonemaster_active_mapping', s.activeMappingFile)
-    } catch {}
+    } catch { /* quota exceeded or private browsing */ }
   })
 }

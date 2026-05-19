@@ -71,10 +71,51 @@ export default function GuidePage() {
           </div>
         </section>
 
-        {/* Step 2: 配置音色 Mapping */}
+        {/* Step 2: 在 Neural DSP 插件中启用 MIDI */}
         <section className="space-y-4">
           <div className="flex items-center gap-3">
             <span className="w-8 h-8 rounded-full bg-green-900/40 text-green-400 flex items-center justify-center text-sm font-bold">2</span>
+            <h3 className="text-lg font-semibold">在 Neural DSP 插件中启用 MIDI 接收</h3>
+          </div>
+          <div className="ml-11 space-y-4">
+            <p className="text-sm text-zinc-400 leading-relaxed">
+              创建好虚拟 MIDI 端口后，需要在 Neural DSP 插件内部进行设置，让它监听该端口并响应 Program Change 信号。
+            </p>
+
+            <div className="bg-zinc-900 rounded-xl p-4 border border-zinc-800 space-y-3">
+              <h4 className="text-sm font-medium text-white">操作步骤（以 Standalone 模式为例）：</h4>
+              <ol className="text-sm text-zinc-400 space-y-2 list-decimal list-inside">
+                <li>打开 Neural DSP 插件（如 Archetype Gojira、Petrucci 等）</li>
+                <li>点击右上角 <strong className="text-white">齿轮图标</strong>（Settings / Preferences）</li>
+                <li>找到 <strong className="text-white">MIDI</strong> 选项卡</li>
+                <li>在 <strong className="text-white">MIDI Input</strong> 下拉菜单中选择你刚创建的虚拟端口（如 <code className="text-green-400 bg-zinc-800 px-1 rounded">IAC Driver - ToneMaster</code> 或 <code className="text-green-400 bg-zinc-800 px-1 rounded">ToneMaster</code>）</li>
+                <li>确认 <strong className="text-white">MIDI Program Change</strong> 选项已设为 <strong className="text-green-400">Enabled</strong>（部分插件默认关闭）</li>
+                <li>如果有 Channel 设置，选择 <strong className="text-white">Channel 1</strong>（或 Omni / All）</li>
+              </ol>
+            </div>
+
+            <div className="bg-zinc-900 rounded-xl p-4 border border-zinc-800 space-y-3">
+              <h4 className="text-sm font-medium text-white">在 DAW 中使用（Logic / Ableton / Reaper 等）：</h4>
+              <ol className="text-sm text-zinc-400 space-y-2 list-decimal list-inside">
+                <li>在 DAW 的插件轨道上，确保 MIDI 输入路由选中虚拟端口（IAC Driver / loopMIDI）</li>
+                <li>有些 DAW 需要手动启用 &ldquo;MIDI Input from External&rdquo;</li>
+                <li>Neural DSP 插件作为 AU/VST 加载时，MIDI PC 接收通常自动启用，无需额外设置</li>
+              </ol>
+            </div>
+
+            <div className="bg-zinc-900/60 rounded-xl p-4 border border-zinc-700/50">
+              <p className="text-sm text-zinc-400">
+                <strong className="text-green-400">💡 验证方法：</strong>设置完成后，在 ToneMaster 的 Settings 页面点击某个预设的 Test 按钮。
+                如果 Neural DSP 成功切换到对应预设，说明 MIDI 链路已经打通。
+              </p>
+            </div>
+          </div>
+        </section>
+
+        {/* Step 3: 配置音色 Mapping */}
+        <section className="space-y-4">
+          <div className="flex items-center gap-3">
+            <span className="w-8 h-8 rounded-full bg-green-900/40 text-green-400 flex items-center justify-center text-sm font-bold">3</span>
             <h3 className="text-lg font-semibold">配置音色 Mapping</h3>
           </div>
           <div className="ml-11 space-y-4">
@@ -104,10 +145,10 @@ export default function GuidePage() {
           </div>
         </section>
 
-        {/* Step 3: 开始一个 Project */}
+        {/* Step 4: 开始一个 Project */}
         <section className="space-y-4">
           <div className="flex items-center gap-3">
-            <span className="w-8 h-8 rounded-full bg-green-900/40 text-green-400 flex items-center justify-center text-sm font-bold">3</span>
+            <span className="w-8 h-8 rounded-full bg-green-900/40 text-green-400 flex items-center justify-center text-sm font-bold">4</span>
             <h3 className="text-lg font-semibold">开始一个 Project</h3>
           </div>
           <div className="ml-11 space-y-4">
@@ -115,7 +156,7 @@ export default function GuidePage() {
               <ol className="text-sm text-zinc-400 space-y-2 list-decimal list-inside">
                 <li>在主页点击 <strong className="text-white">+</strong> 创建新项目（或打开已有项目）</li>
                 <li>上传你要练的歌曲音频（支持 mp3、wav、flac、ogg、m4a）</li>
-                <li>选择对应的 Tone Mapping 文件（步骤 2 中创建的）</li>
+                <li>选择对应的 Tone Mapping 文件（步骤 3 中创建的）</li>
                 <li>在波形时间轴上点击 <strong className="text-white">+</strong> 添加 Tone Trigger，选择目标音色</li>
                 <li>拖拽调整触发点位置，使其对齐乐曲中的音色切换时刻</li>
               </ol>
@@ -125,6 +166,36 @@ export default function GuidePage() {
               <p className="text-sm text-zinc-400">
                 <strong className="text-green-400">💡 Tip：</strong>使用 A-B Loop 功能反复练习某段落——
                 在 Transport 栏点击循环按钮后，进度条会高亮循环区间，播放到 B 点自动跳回 A 点。
+              </p>
+            </div>
+          </div>
+        </section>
+
+        {/* Export MIDI */}
+        <section className="space-y-4">
+          <div className="flex items-center gap-3">
+            <span className="w-8 h-8 rounded-full bg-purple-900/40 text-purple-400 flex items-center justify-center text-sm font-bold">⚡</span>
+            <h3 className="text-lg font-semibold">进阶功能：Export MIDI</h3>
+          </div>
+          <div className="ml-11 space-y-4">
+            <p className="text-sm text-zinc-400 leading-relaxed">
+              点击顶部工具栏的 <strong className="text-white">Export MIDI</strong> 按钮，可以将时间轴上所有的 Tone Trigger
+              导出为一个标准 <code className="text-green-400 bg-zinc-800 px-1 rounded">.mid</code> MIDI 文件（包含 Program Change 消息）。
+            </p>
+
+            <div className="bg-zinc-900 rounded-xl p-4 border border-zinc-800 space-y-3">
+              <h4 className="text-sm font-medium text-white">适用场景：</h4>
+              <ol className="text-sm text-zinc-400 space-y-2 list-decimal list-inside">
+                <li>在 DAW（Logic Pro / Ableton / Reaper）中使用 —— 将 MIDI 文件拖入轨道，DAW 会在对应时间点发送 PC 消息切换音色</li>
+                <li>录音时脱离 ToneMaster —— 编排好音色切换后导出，之后只用 DAW 即可完成录制</li>
+                <li>与硬件效果器配合 —— 通过 DAW 或 MIDI 接口将 PC 消息发送给实体设备（如 Quad Cortex、Axe-Fx 等）</li>
+              </ol>
+            </div>
+
+            <div className="bg-zinc-900/60 rounded-xl p-4 border border-zinc-700/50">
+              <p className="text-sm text-zinc-400">
+                <strong className="text-green-400">💡 Tip：</strong>如果你只是用 ToneMaster 实时播放练琴，不需要使用此功能。
+                它是为需要在 DAW 中进一步编辑或录音的用户准备的。
               </p>
             </div>
           </div>
