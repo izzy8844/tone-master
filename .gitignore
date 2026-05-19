@@ -43,3 +43,8 @@ next-env.d.ts
 # python
 __pycache__/
 *.pyc
+data/uploads/
+backend/uploads/
+*.mp3
+*.wav
+*.converted.wav

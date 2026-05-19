@@ -282,47 +282,71 @@ async def midi_automap(req: AutoMapRequest):
 @app.post("/api/init/auto-setup")
 async def init_auto_setup():
     """
-    First-launch auto-setup: detect plugins, find user presets, auto-generate mapping.
-    Returns the plugin name, user presets, and mapping status.
+    First-launch auto-setup: detect ALL plugins, find user presets for each,
+    auto-generate + install ToneMaster.xml for EVERY detected Neural DSP plugin.
     """
     try:
         plugins = scan_plugins()
         if not plugins:
-            return {"status": "no_plugins", "plugin": None, "user_presets": [], "mapping_installed": False}
+            return {"status": "no_plugins", "results": []}
 
-        # Pick the first plugin (or the one with most presets)
-        plugin = max(plugins, key=lambda p: p.preset_count)
-        plugin_name = plugin.name
+        results = []
+        for plugin in plugins:
+            plugin_name = plugin.name
+            try:
+                user_presets = scan_presets(plugin_name, source="user")
+            except Exception:
+                continue
 
-        # Check if user already has a mapping
-        existing = list_mappings(plugin_name)
-        if existing:
-            # Already has mapping — just return info
-            tones = get_mapping_tones(plugin_name, existing[0].filename)
-            return {
-                "status": "ready",
-                "plugin": plugin_name,
-                "mapping_file": existing[0].filename,
-                "user_presets": [t.model_dump() for t in tones],
-                "mapping_installed": True,
-            }
+            if not user_presets:
+                results.append({
+                    "plugin": plugin_name,
+                    "status": "no_user_presets",
+                    "preset_count": 0,
+                    "mapping_installed": False,
+                })
+                continue
 
-        # No mapping yet — get user presets and auto-generate
-        user_presets = scan_presets(plugin_name, source="user")
-        if not user_presets:
-            # No user presets at all
-            return {"status": "no_user_presets", "plugin": plugin_name, "user_presets": [], "mapping_installed": False}
+            # Check if already has a mapping
+            existing = list_mappings(plugin_name)
+            if existing:
+                tones = get_mapping_tones(plugin_name, existing[0].filename)
+                results.append({
+                    "plugin": plugin_name,
+                    "status": "ready",
+                    "preset_count": len(user_presets),
+                    "mapping_file": existing[0].filename,
+                    "user_presets": [t.model_dump() for t in tones],
+                    "mapping_installed": True,
+                })
+                continue
 
-        # Auto-map user presets and install
-        preset_names = [p.name for p in user_presets]
-        result = auto_map_and_install(plugin_name, preset_names, filename="ToneMaster.xml")
+            # Auto-map user presets and install
+            preset_names = [p.name for p in user_presets]
+            try:
+                result = auto_map_and_install(plugin_name, preset_names, filename="ToneMaster.xml")
+                results.append({
+                    "plugin": plugin_name,
+                    "status": "auto_mapped",
+                    "preset_count": len(user_presets),
+                    "mapping_installed": True,
+                    "mapping_file": "ToneMaster.xml",
+                    "installed_path": result.get("installed_path", ""),
+                    "user_presets": [{"name": p.name, "pc": i, "uid": p.uid or ""} for i, p in enumerate(user_presets)],
+                })
+            except Exception as e:
+                results.append({
+                    "plugin": plugin_name,
+                    "status": "error",
+                    "error": str(e),
+                    "preset_count": len(user_presets),
+                    "mapping_installed": False,
+                })
+
+        auto_mapped_count = sum(1 for r in results if r.get("mapping_installed"))
         return {
-            "status": "auto_mapped",
-            "plugin": plugin_name,
-            "user_presets": [{"name": p.name, "pc": i, "uid": p.uid or ""} for i, p in enumerate(user_presets)],
-            "mapping_installed": True,
-            "mapping_file": "ToneMaster.xml",
-            "installed_path": result.get("installed_path", ""),
+            "status": f"processed {len(results)} plugins, {auto_mapped_count} mappings installed",
+            "results": results,
         }
     except Exception as e:
         return JSONResponse({"error": str(e)}, status_code=500)

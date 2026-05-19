@@ -230,7 +230,13 @@ export interface AutoSetupResult {
 export async function initAutoSetup(): Promise<AutoSetupResult> {
   const res = await fetchWithTimeout(`${API_BASE}/api/init/auto-setup`, { method: 'POST' })
   if (!res.ok) throw new Error(`HTTP ${res.status}`)
-  return res.json()
+  // Response format: { status, results: [{plugin, status: 'auto_mapped'|'ready'|'no_user_presets', preset_count, mapping_installed, ...}] }
+  const data = await res.json()
+  // Backward compatibility: wrap single-result old format into results array
+  if (!data.results && data.plugin) {
+    data.results = [data]
+  }
+  return data
 }
 
 // --- MIDI Learn APIs ---

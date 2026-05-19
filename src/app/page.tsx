@@ -56,7 +56,7 @@ export default function Home() {
     }
   }, [])
 
-  // Auto-setup on first launch: detect plugin, auto-map user presets
+  // Auto-setup on first launch: detect ALL plugins, auto-map user presets for each
   useEffect(() => {
     const mapper = useMapperStore.getState()
     // Skip if already initialized or already has a plugin selected
@@ -67,22 +67,41 @@ export default function Home() {
       .then((result) => {
         const m = useMapperStore.getState()
         m.setAutoSetupDone(true)
-        m.setInitStatus(result.status as typeof result.status)
 
-        if (result.plugin) {
-          m.setSelectedPlugin(result.plugin)
-        }
-        if (result.mapping_file) {
-          m.setActiveMappingFile(result.mapping_file)
-        }
-        if (result.user_presets && result.user_presets.length > 0) {
-          m.setUserPresets(result.user_presets)
-          // Also set as active mapping tones for the ToneAddDialog
-          m.setActiveMappingTones(result.user_presets.map(p => ({ name: p.name, pc: p.pc, uid: p.uid })))
+        // New multi-plugin format: result.results[] — legacy: single plugin
+        const raw: any = result
+        const items: any[] = (raw.results || [raw]) as any[]
+        const mapped = items.filter((r: any) => r.mapping_installed)
+        const noPresets = items.filter((r: any) => r.status === 'no_user_presets')
+
+        // Pick first plugin that has presets for active selection
+        const firstWithPresets = items.find((r: any) =>
+          r.status === 'auto_mapped' || r.status === 'ready'
+        )
+
+        if (firstWithPresets) {
+          m.setSelectedPlugin(firstWithPresets.plugin)
+          m.setPlugins(items.map((r: any) => r.plugin).filter(Boolean))
+
+          if (firstWithPresets.mapping_file) {
+            m.setActiveMappingFile(firstWithPresets.mapping_file)
+          }
+          const presets = firstWithPresets.user_presets || []
+          if (presets.length > 0) {
+            m.setUserPresets(presets)
+            m.setActiveMappingTones(presets.map((p: any) => ({ name: p.name, pc: p.pc, uid: p.uid })))
+          }
         }
 
-        if (result.status === 'auto_mapped') {
-          toast.success(`Auto-mapped ${result.user_presets.length} user presets for ${result.plugin}`)
+        if (mapped.length > 0) {
+          const pluginNames = mapped.map((r: any) => r.plugin).join(', ')
+          const totalPresets = mapped.reduce((sum: number, r: any) => sum + (r.preset_count || 0), 0)
+          m.setInitStatus('auto_mapped')
+          toast.success(`Auto-mapped ${totalPresets} presets across ${pluginNames}`)
+        } else if (noPresets.length > 0 && firstWithPresets) {
+          m.setInitStatus('ready')
+        } else {
+          m.setInitStatus('no_user_presets')
         }
       })
       .catch(() => {
