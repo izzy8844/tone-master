@@ -56,11 +56,9 @@ export default function Home() {
     }
   }, [])
 
-  // Auto-setup on first launch: detect ALL plugins, auto-map user presets for each
+  // Auto-setup on EVERY launch: detect ALL plugins, regenerate tonemaster-user.xml
   useEffect(() => {
     const mapper = useMapperStore.getState()
-    // Skip if already initialized or already has a plugin selected
-    if (mapper.autoSetupDone || mapper.selectedPlugin) return
 
     mapper.setInitStatus('loading')
     initAutoSetup()

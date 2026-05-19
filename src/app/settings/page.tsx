@@ -100,7 +100,7 @@ export default function SettingsPage() {
     if (!mappings.length) return
     setInstallMsg('Installing...')
     try {
-      const res = await fetch(`${API_BASE}/api/midi/automap`, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ plugin_name: selectedPlugin, preset_names: mappings.map(m => m.name), start_pc: 0 }) })
+      const res = await fetch(`${API_BASE}/api/midi/automap`, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ plugin_name: selectedPlugin, preset_names: mappings.map(m => m.name), start_pc: 0, filename: 'tonemaster-user.xml' }) })
       if (!res.ok) throw new Error(`Automap failed: ${res.status}`)
       const data = await res.json()
       setGeneratedXml(data.xml || '', '')

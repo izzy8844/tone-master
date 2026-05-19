@@ -42,8 +42,8 @@ def _detect_plugin_format(plugin_name: str) -> tuple:
         for fname in os.listdir(config_dir):
             if not fname.lower().endswith(".xml"):
                 continue
-            # 忽略我们自己生成的文件，避免格式毒化
-            if fname == "ToneMaster.xml":
+            # 忽略我们自己生成的 user 映射文件，避免格式毒化
+            if fname == "tonemaster-user.xml":
                 continue
             fpath = config_dir / fname
             try:
@@ -101,7 +101,7 @@ def generate_xml(plugin_name: str, mappings: List[PresetMapping], filename: Opti
         xml_str = _generate_old_format(plugin_name, mappings)
 
     if not filename:
-        filename = "ToneMaster.xml"
+        filename = "tonemaster-user.xml"
     return xml_str, filename
 
 
@@ -219,7 +219,7 @@ def auto_map_with_uids(plugin_name: str, preset_names: List[str], start_pc: int 
     return mappings
 
 
-def auto_map_and_install(plugin_name: str, preset_names: List[str], filename: str = "ToneMaster.xml", channel: int = 0) -> dict:
+def auto_map_and_install(plugin_name: str, preset_names: List[str], filename: str = "tonemaster-user.xml", channel: int = 0) -> dict:
     """
     One-click: scan presets → compute hashCode64 UIDs → generate XML → install to system dir.
     This is the recommended way to create a working MIDI mapping.

@@ -1,0 +1,26 @@
+<?xml version="1.0" encoding="UTF-8"?>
+
+<midi>
+<routings plugin_type="neural_dsp_markiic" plugin_name="Mesa Boogie Mark IIC+ Suite" plugin_version="1.0.0">
+    <routing type="pc_preset" channel="0" enabled="1" program="0" preset="-1663466656806878665"/>
+    <routing type="pc_preset" channel="0" enabled="1" program="1" preset="326311574436484829"/>
+    <routing type="pc_preset" channel="0" enabled="1" program="2" preset="5487064459680446518"/>
+    <routing type="pc_preset" channel="0" enabled="1" program="3" preset="-8339760171792257044"/>
+    <routing type="pc_preset" channel="0" enabled="1" program="4" preset="4631456770238715798"/>
+    <routing type="pc_preset" channel="0" enabled="1" program="5" preset="-2502081778837441524"/>
+    <routing type="pc_preset" channel="0" enabled="1" program="6" preset="-8282231343382324410"/>
+    <routing type="pc_preset" channel="0" enabled="1" program="7" preset="-6401882364344830940"/>
+    <routing type="pc_preset" channel="0" enabled="1" program="8" preset="8453551235584939439"/>
+    <routing type="pc_preset" channel="0" enabled="1" program="9" preset="4363431209390591740"/>
+    <routing type="pc_preset" channel="0" enabled="1" program="10" preset="-1313041675450970228"/>
+    <routing type="pc_preset" channel="0" enabled="1" program="11" preset="2609755885534252758"/>
+    <routing type="pc_preset" channel="0" enabled="1" program="12" preset="5189380246172277844"/>
+    <routing type="pc_preset" channel="0" enabled="1" program="13" preset="-803758028423160313"/>
+    <routing type="pc_preset" channel="0" enabled="1" program="14" preset="1975030713219469101"/>
+    <routing type="pc_preset" channel="0" enabled="1" program="15" preset="-3270347122329002014"/>
+    <routing type="pc_preset" channel="0" enabled="1" program="16" preset="-1744274677817590944"/>
+    <routing type="pc_preset" channel="0" enabled="1" program="17" preset="-5959007329994220548"/>
+    <routing type="pc_preset" channel="0" enabled="1" program="18" preset="3278704709635996847"/>
+    <routing type="pc_preset" channel="0" enabled="1" program="19" preset="-9136807189891942540"/>
+</routings>
+</midi>

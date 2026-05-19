@@ -1,0 +1,18 @@
+<?xml version="1.0" encoding="UTF-8"?>
+
+<midi>
+  <routings>
+    <routing type="pc_preset" target="5824107809734184361" midiChannel="0"
+             data1="0" data2="0" value="0.0" enabled="1"/>
+    <routing type="pc_preset" target="-3276537392837762441" midiChannel="0"
+             data1="1" data2="0" value="0.0" enabled="1"/>
+    <routing type="pc_preset" target="1876099262973545293" midiChannel="0"
+             data1="2" data2="0" value="0.0" enabled="1"/>
+    <routing type="pc_preset" target="-1943316241818593145" midiChannel="0"
+             data1="3" data2="0" value="0.0" enabled="1"/>
+    <routing type="pc_preset" target="1880853776671650657" midiChannel="0"
+             data1="4" data2="0" value="0.0" enabled="1"/>
+    <routing type="pc_preset" target="6804446808715996892" midiChannel="0"
+             data1="5" data2="0" value="0.0" enabled="1"/>
+  </routings>
+</midi>

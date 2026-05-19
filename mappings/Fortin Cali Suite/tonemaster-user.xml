@@ -1,0 +1,19 @@
+<?xml version="1.0" encoding="UTF-8"?>
+
+<midi>
+<routings plugin_type="neural_dsp_cali" plugin_name="Fortin Cali Suite" plugin_version="1.0.0">
+    <routing type="pc_preset" channel="0" enabled="1" program="0" preset="-2240569573995905236"/>
+    <routing type="pc_preset" channel="0" enabled="1" program="1" preset="6062871048724003250"/>
+    <routing type="pc_preset" channel="0" enabled="1" program="2" preset="8769601214813295915"/>
+    <routing type="pc_preset" channel="0" enabled="1" program="3" preset="7864888239051685574"/>
+    <routing type="pc_preset" channel="0" enabled="1" program="4" preset="-133743105183284375"/>
+    <routing type="pc_preset" channel="0" enabled="1" program="5" preset="-5109413868205353973"/>
+    <routing type="pc_preset" channel="0" enabled="1" program="6" preset="-2481673278513699911"/>
+    <routing type="pc_preset" channel="0" enabled="1" program="7" preset="4214056715154149309"/>
+    <routing type="pc_preset" channel="0" enabled="1" program="8" preset="4214056715258209710"/>
+    <routing type="pc_preset" channel="0" enabled="1" program="9" preset="4214056715362270111"/>
+    <routing type="pc_preset" channel="0" enabled="1" program="10" preset="1962189737421839385"/>
+    <routing type="pc_preset" channel="0" enabled="1" program="11" preset="1962189737525899786"/>
+    <routing type="pc_preset" channel="0" enabled="1" program="12" preset="1962189737629960187"/>
+</routings>
+</midi>

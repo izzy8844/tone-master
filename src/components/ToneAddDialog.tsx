@@ -143,7 +143,7 @@ export default function ToneAddDialog({ open, onClose, time }: Props) {
                       </div>
                       <div className="flex items-start gap-2">
                         <CheckCircle2 size={12} className="text-green-500/70 shrink-0 mt-0.5" />
-                        <span>Select <span className="text-zinc-200">{activeMappingFile || 'ToneMaster.xml'}</span> as the MIDI mapping file</span>
+                        <span>Select <span className="text-zinc-200">{activeMappingFile || 'tonemaster-user.xml'}</span> as the MIDI mapping file</span>
                       </div>
                     </div>
                   </div>

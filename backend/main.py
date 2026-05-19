@@ -271,7 +271,7 @@ async def midi_generate(req: GenerateXmlRequest):
 async def midi_automap(req: AutoMapRequest):
     """One-click: scan presets → compute hashCode64 UIDs → generate XML → install to plugin dir."""
     try:
-        result = auto_map_and_install(req.plugin_name, req.preset_names, filename="ToneMaster.xml", channel=req.start_pc if hasattr(req, 'channel') else 0)
+        result = auto_map_and_install(req.plugin_name, req.preset_names, filename="tonemaster-user.xml", channel=req.start_pc if hasattr(req, 'channel') else 0)
         return result
     except ValueError as e:
         return JSONResponse({"error": str(e)}, status_code=400)
@@ -280,10 +280,11 @@ async def midi_automap(req: AutoMapRequest):
 
 
 @app.post("/api/init/auto-setup")
-async def init_auto_setup():
+async def init_auto_setup(force: bool = False):
     """
-    First-launch auto-setup: detect ALL plugins, find user presets for each,
-    auto-generate + install ToneMaster.xml for EVERY detected Neural DSP plugin.
+    Auto-setup on app launch: detect ALL plugins, scan user presets for each,
+    regenerate tonemaster-user.xml for EVERY plugin that has user presets.
+    Always runs full scan (not just first launch). Always overwrites.
     """
     try:
         plugins = scan_plugins()
@@ -307,30 +308,16 @@ async def init_auto_setup():
                 })
                 continue
 
-            # Check if already has a mapping
-            existing = list_mappings(plugin_name)
-            if existing:
-                tones = get_mapping_tones(plugin_name, existing[0].filename)
-                results.append({
-                    "plugin": plugin_name,
-                    "status": "ready",
-                    "preset_count": len(user_presets),
-                    "mapping_file": existing[0].filename,
-                    "user_presets": [t.model_dump() for t in tones],
-                    "mapping_installed": True,
-                })
-                continue
-
-            # Auto-map user presets and install
+            # Always regenerate tonemaster-user.xml — overwrites any existing mapping
             preset_names = [p.name for p in user_presets]
             try:
-                result = auto_map_and_install(plugin_name, preset_names, filename="ToneMaster.xml")
+                result = auto_map_and_install(plugin_name, preset_names, filename="tonemaster-user.xml")
                 results.append({
                     "plugin": plugin_name,
                     "status": "auto_mapped",
                     "preset_count": len(user_presets),
                     "mapping_installed": True,
-                    "mapping_file": "ToneMaster.xml",
+                    "mapping_file": "tonemaster-user.xml",
                     "installed_path": result.get("installed_path", ""),
                     "user_presets": [{"name": p.name, "pc": i, "uid": p.uid or ""} for i, p in enumerate(user_presets)],
                 })
