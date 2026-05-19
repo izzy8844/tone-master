@@ -75,6 +75,10 @@ export default function SettingsPage() {
       .catch(() => { setInstallMsg('⚠ Could not load plugins — is the backend running?') })
   }, [setPlugins])
 
+  const setUserPresets = useMapperStore((s) => s.setUserPresets)
+  const setActiveMappingTones = useMapperStore((s) => s.setActiveMappingTones)
+  const setActiveMappingFile = useMapperStore((s) => s.setActiveMappingFile)
+
   useEffect(() => {
     if (!selectedPlugin) { setPresets([]); return }
     setLoading(true)
@@ -83,7 +87,19 @@ export default function SettingsPage() {
       .then(d => setPresets(d))
       .catch(() => {})
       .finally(() => setLoading(false))
-  }, [selectedPlugin, sourceFilter, setPresets, setLoading])
+
+    // Also auto-map to refresh userPresets + activeMappingTones for ToneAddDialog
+    // Fetch user presets specifically for this plugin
+    fetch(`${API_BASE}/api/presets?plugin=${encodeURIComponent(selectedPlugin)}&source=user`)
+      .then(r => r.ok ? r.json() : [])
+      .then((userPresets: Array<{ name: string; uid?: string }>) => {
+        const mapped = userPresets.map((p, i) => ({ name: p.name, pc: i, uid: p.uid || '' }))
+        setUserPresets(mapped)
+        setActiveMappingTones(mapped.map(p => ({ name: p.name, pc: p.pc, uid: p.uid })))
+        setActiveMappingFile('tonemaster-user.xml')
+      })
+      .catch(() => {})
+  }, [selectedPlugin, sourceFilter, setPresets, setLoading, setUserPresets, setActiveMappingTones, setActiveMappingFile])
 
   const filteredPresets = presets.filter(p => !searchQuery || p.name.toLowerCase().includes(searchQuery.toLowerCase()))
 

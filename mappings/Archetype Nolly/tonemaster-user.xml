@@ -3,6 +3,7 @@
 <midi>
 <routings plugin_type="neural_dsp_nolly" plugin_name="Archetype Nolly" plugin_version="1.0.0">
     <routing type="pc_preset" channel="0" enabled="1" program="0" preset="4737270223138676123"/>
-    <routing type="pc_preset" channel="0" enabled="1" program="1" preset="-6328397265604720234"/>
+    <routing type="pc_preset" channel="0" enabled="1" program="1" preset="9180418559345479201"/>
+    <routing type="pc_preset" channel="0" enabled="1" program="2" preset="-6328397265604720234"/>
 </routings>
 </midi>

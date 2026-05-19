@@ -21,6 +21,7 @@
     <routing type="pc_preset" channel="0" enabled="1" program="16" preset="-1744274677817590944"/>
     <routing type="pc_preset" channel="0" enabled="1" program="17" preset="-5959007329994220548"/>
     <routing type="pc_preset" channel="0" enabled="1" program="18" preset="3278704709635996847"/>
-    <routing type="pc_preset" channel="0" enabled="1" program="19" preset="-9136807189891942540"/>
+    <routing type="pc_preset" channel="0" enabled="1" program="19" preset="-6217960543640549198"/>
+    <routing type="pc_preset" channel="0" enabled="1" program="20" preset="-9136807189891942540"/>
 </routings>
 </midi>

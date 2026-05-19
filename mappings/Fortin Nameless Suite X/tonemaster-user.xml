@@ -4,9 +4,9 @@
   <routings>
     <routing type="pc_preset" target="2954250359413639436" midiChannel="0"
              data1="0" data2="0" value="0.0" enabled="1"/>
-    <routing type="pc_preset" target="7711439628969862714" midiChannel="0"
+    <routing type="pc_preset" target="-2887770762490411478" midiChannel="0"
              data1="1" data2="0" value="0.0" enabled="1"/>
-    <routing type="pc_preset" target="-3291514465930878816" midiChannel="0"
+    <routing type="pc_preset" target="7711439628969862714" midiChannel="0"
              data1="2" data2="0" value="0.0" enabled="1"/>
     <routing type="pc_preset" target="-6667142981898955374" midiChannel="0"
              data1="3" data2="0" value="0.0" enabled="1"/>

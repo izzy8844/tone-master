@@ -28,7 +28,7 @@ export const useMapperStore = create<MapperState>((set, get) => ({
   selectedPort: '', midiPorts: [],
   setSelectedPort: (p) => set({ selectedPort: p }), setMidiPorts: (p) => set({ midiPorts: p }),
   selectedPlugin: '', plugins: [],
-  setSelectedPlugin: (plugin) => set({ selectedPlugin: plugin, presets: [], selectedPresets: new Set(), presetOrder: [], generatedXml: '', targetPath: '', installedPath: '' }),
+  setSelectedPlugin: (plugin) => set({ selectedPlugin: plugin, presets: [], selectedPresets: new Set(), presetOrder: [], generatedXml: '', targetPath: '', installedPath: '', userPresets: [], activeMappingTones: [] }),
   setPlugins: (p) => set({ plugins: p }),
   presets: [], selectedPresets: new Set(), presetOrder: [], loading: false,
   setPresets: (presets) => {
