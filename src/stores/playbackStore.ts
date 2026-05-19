@@ -18,8 +18,8 @@ interface PlaybackState {
   setActiveTriggerIndex: (i: number) => void
 }
 
-function loadSaved() { try { const r = localStorage.getItem('tonemaster_playback'); return r ? JSON.parse(r) : {} } catch { return {} } }
-function writeSaved(data: Record<string, unknown>) { try { localStorage.setItem('tonemaster_playback', JSON.stringify(data)) } catch {} }
+function loadSaved() { if (typeof window === 'undefined') return {}; try { const r = localStorage.getItem('tonemaster_playback'); return r ? JSON.parse(r) : {} } catch { return {} } }
+function writeSaved(data: Record<string, unknown>) { if (typeof window === 'undefined') return; try { localStorage.setItem('tonemaster_playback', JSON.stringify(data)) } catch {} }
 
 export const usePlaybackStore = create<PlaybackState>((set, get) => ({
   theme: 'dark', setTheme: (t) => set({ theme: t }),
@@ -42,20 +42,29 @@ export const usePlaybackStore = create<PlaybackState>((set, get) => ({
   setActiveTriggerIndex: (i) => set({ activeTriggerIndex: i }),
 }))
 
+const PERSIST_KEYS = ['zoom', 'currentTick', 'loopA', 'loopB', 'currentMidiPort'] as const
+
 export function hydratePlaybackStore() {
-  const s = loadSaved()
-  if (Object.keys(s).length) usePlaybackStore.setState(s as any)
+  const raw = loadSaved()
+  if (!raw || typeof raw !== 'object') return
+  const patch: Record<string, unknown> = {}
+  for (const key of PERSIST_KEYS) { if (key in raw) patch[key] = (raw as Record<string, unknown>)[key] }
+  if (Object.keys(patch).length) usePlaybackStore.setState(patch as Partial<PlaybackState>)
 }
 
-// Track persistent fields only to avoid debounce on isPlaying/duration/wsConnected changes
-let _persistentSnapshot = { zoom: 1, currentTick: 0, loopA: null as number | null, loopB: null as number | null, currentMidiPort: null as string | null }
 let saveTimer: ReturnType<typeof setTimeout> | null = null
 if (typeof window !== 'undefined') {
+  let prevPersist = { zoom: 0, currentTick: 0, loopA: null as number | null, loopB: null as number | null, currentMidiPort: null as string | null }
+  let prevIsPlaying = false
   usePlaybackStore.subscribe((state) => {
-    const ps = { zoom: state.zoom, currentTick: state.currentTick, loopA: state.loopA, loopB: state.loopB, currentMidiPort: state.currentMidiPort }
-    if (ps.zoom === _persistentSnapshot.zoom && ps.currentTick === _persistentSnapshot.currentTick && ps.loopA === _persistentSnapshot.loopA && ps.loopB === _persistentSnapshot.loopB && ps.currentMidiPort === _persistentSnapshot.currentMidiPort) return
-    _persistentSnapshot = ps
+    const curr = { zoom: state.zoom, currentTick: state.currentTick, loopA: state.loopA, loopB: state.loopB, currentMidiPort: state.currentMidiPort }
+    const tickChanged = curr.currentTick !== prevPersist.currentTick
+    const otherChanged = curr.zoom !== prevPersist.zoom || curr.loopA !== prevPersist.loopA || curr.loopB !== prevPersist.loopB || curr.currentMidiPort !== prevPersist.currentMidiPort
+    const stoppedPlaying = prevIsPlaying && !state.isPlaying
+    prevIsPlaying = state.isPlaying
+    if (!stoppedPlaying && !otherChanged && (!tickChanged || state.isPlaying)) return
+    prevPersist = curr
     if (saveTimer) clearTimeout(saveTimer)
-    saveTimer = setTimeout(() => writeSaved(ps), 500)
+    saveTimer = setTimeout(() => writeSaved(curr), 500)
   })
 }

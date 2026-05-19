@@ -1,5 +1,4 @@
-import os
-import platform
+import os, platform
 from pathlib import Path
 
 SYSTEM = platform.system()
@@ -19,20 +18,20 @@ else:
         Path(r"C:\Users\Public\Documents\Neural DSP"),
     ]
 
-NEURAL_DSP_PRESETS = next((p for p in _POSSIBLE_NEURAL_DSP_PATHS if p.exists()),
-                          Path(os.path.expanduser("~/Documents/Neural DSP")))
+NEURAL_DSP_PRESETS = next((p for p in _POSSIBLE_NEURAL_DSP_PATHS if p.exists()), Path(os.path.expanduser("~/Documents/Neural DSP")))
 
 if SYSTEM == "Darwin":
     NEURAL_DSP_USER_CONFIG = Path(os.path.expanduser("~/Library/Application Support/Neural DSP"))
 else:
     NEURAL_DSP_USER_CONFIG = Path(os.path.expanduser(r"~\AppData\Roaming\Neural DSP"))
+NEURAL_DSP_USER_CONFIG.mkdir(parents=True, exist_ok=True)
+
+MIDI_MAPPINGS_BASE = NEURAL_DSP_USER_CONFIG
 
 UPLOAD_DIR = PROJECT_ROOT / "data" / "uploads"
 UPLOAD_DIR.mkdir(parents=True, exist_ok=True)
-
 PROJECTS_DIR = PROJECT_ROOT / "data" / "projects"
 PROJECTS_DIR.mkdir(parents=True, exist_ok=True)
-
 MAPPING_DIR = Path("mappings")
 MAPPING_DIR.mkdir(parents=True, exist_ok=True)
 

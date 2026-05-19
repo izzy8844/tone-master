@@ -1,6 +1,7 @@
 'use client'
 import { Download } from 'lucide-react'
 import { useProjectStore } from '@/stores/projectStore'
+import { usePlaybackStore } from '@/stores/playbackStore'
 import { useGatekeeper } from '@/hooks/useGatekeeper'
 import { downloadMidiFile, type MidiTrigger, type MidiMetadata } from '@/lib/midi-export'
 import { toast } from '@/components/Toast'
@@ -8,16 +9,14 @@ import { toast } from '@/components/Toast'
 export default function ExportButton() {
   const triggers = useProjectStore((s) => s.triggers)
   const projectName = useProjectStore((s) => s.projectName)
-  const duration = (typeof window !== 'undefined' ? 60 : 0)
+  const duration = usePlaybackStore((s) => s.duration)
   const { guard } = useGatekeeper()
 
   const handleExport = () => {
     guard('export_xml', () => {
       try {
         if (triggers.length === 0) { toast.info('Add at least one trigger before exporting.'); return }
-        const midiTriggers: MidiTrigger[] = triggers.map((t) => ({
-          id: String(t.id), time: t.time, toneName: t.name, program: t.pc, bank: 0,
-        }))
+        const midiTriggers: MidiTrigger[] = triggers.map(t => ({ id: String(t.id), time: t.time, toneName: t.name, program: t.pc, bank: 0 }))
         const metadata: MidiMetadata = { name: projectName, duration }
         downloadMidiFile(midiTriggers, metadata)
         toast.success('MIDI file exported!')

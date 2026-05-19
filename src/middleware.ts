@@ -1,14 +1,21 @@
-import { NextResponse } from 'next/server'
-import type { NextRequest } from 'next/server'
+import { clerkMiddleware } from "@clerk/nextjs/server";
+import { NextResponse } from "next/server";
 
-export function middleware(request: NextRequest) {
-  const response = NextResponse.next()
-  response.headers.set('Access-Control-Allow-Origin', '*')
-  response.headers.set('Access-Control-Allow-Methods', 'GET, POST, PUT, DELETE, OPTIONS')
-  response.headers.set('Access-Control-Allow-Headers', 'Content-Type, Authorization')
-  return response
-}
+const isClerkConfigured =
+  process.env.NEXT_PUBLIC_CLERK_PUBLISHABLE_KEY &&
+  !process.env.NEXT_PUBLIC_CLERK_PUBLISHABLE_KEY.includes("REPLACE_ME");
+
+const middleware = isClerkConfigured
+  ? clerkMiddleware()
+  : () => NextResponse.next();
+
+export default middleware;
 
 export const config = {
-  matcher: '/api/:path*',
-}
+  matcher: [
+    "/((?!_next|api/audio|api/midi|api/plugins|api/presets|[^?]*\\.(?:html?|css|js(?!on)|jpe?g|webp|png|gif|svg|ttf|woff2?|ico|csv|docx?|xlsx?|zip|webmanifest)).*)",
+    "/(api/(?:projects|billing/create-checkout|user))(.*)",
+    "/(trpc)(.*)",
+    "/__clerk/(.*)",
+  ],
+};
